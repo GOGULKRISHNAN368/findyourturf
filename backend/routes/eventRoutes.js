@@ -1,5 +1,6 @@
 const express = require("express");
 const Event = require("../models/Event");
+const protect = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
@@ -7,9 +8,16 @@ const router = express.Router();
 // CREATE EVENT
 // POST /api/events
 // ==========================================
-router.post("/", async (req, res) => {
+router.post("/", protect, async (req, res) => {
     try {
         const event = await Event.create(req.body);
+
+        // Notify all connected websites immediately
+        const io = req.app.get("io");
+
+        if (io) {
+            io.emit("new-event", event);
+        }
 
         res.status(201).json({
             success: true,
@@ -82,7 +90,7 @@ router.get("/:id", async (req, res) => {
 // UPDATE EVENT
 // PUT /api/events/:id
 // ==========================================
-router.put("/:id", async (req, res) => {
+router.put("/:id", protect, async (req, res) => {
     try {
         const event = await Event.findByIdAndUpdate(
             req.params.id,
@@ -98,6 +106,13 @@ router.put("/:id", async (req, res) => {
                 success: false,
                 message: "Event not found"
             });
+        }
+
+        // Notify connected websites about update
+        const io = req.app.get("io");
+
+        if (io) {
+            io.emit("event-updated", event);
         }
 
         res.status(200).json({
@@ -119,7 +134,7 @@ router.put("/:id", async (req, res) => {
 // DELETE EVENT
 // DELETE /api/events/:id
 // ==========================================
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", protect, async (req, res) => {
     try {
         const event = await Event.findByIdAndDelete(req.params.id);
 
@@ -127,6 +142,15 @@ router.delete("/:id", async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: "Event not found"
+            });
+        }
+
+        // Notify connected websites about deletion
+        const io = req.app.get("io");
+
+        if (io) {
+            io.emit("event-deleted", {
+                id: req.params.id
             });
         }
 

@@ -7,5 +7,7 @@ export async function getEvents() {
     throw new Error("Failed to fetch events");
   }
 
-  return response.json();
+  const data = await response.json();
+
+  return data.events || [];
 }

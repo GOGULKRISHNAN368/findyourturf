@@ -1,186 +1,295 @@
 import { useEffect, useState } from "react";
+import { Routes, Route } from "react-router-dom";
+
 import "./App.css";
+
 import { getEvents } from "./services/api";
 import { socket } from "./services/socket";
 
-// 🔗 Paste your actual Google Form link here
+import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
+
 const GOOGLE_FORM_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieYqHzFFJMdNCIJAvakRza2HU71A/viewform?usp=publish-editor";
+  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieYqHzFFJMdNCIJAvakRza2HU71A/viewform?usp=dialog";
 
-// Temporary events until backend is ready
-const fallbackEvents = [
-  {
-    id: "demo-cricket",
-    sport: "Cricket",
-    title: "Night Cricket League",
-    image:
-      "https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=900&q=80",
-    teamSize: 8,
-    location: "Coimbatore",
-    firstPrize: "₹10,000",
-    secondPrize: "₹5,000",
-    thirdPrize: "₹2,500",
-    registerLink: GOOGLE_FORM_URL,
-  },
-  {
-    id: "demo-football",
-    sport: "Football",
-    title: "Turf Football Championship",
-    image:
-      "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=900&q=80",
-    teamSize: 8,
-    location: "Coimbatore",
-    firstPrize: "₹10,000",
-    secondPrize: "₹5,000",
-    thirdPrize: "₹2,500",
-    registerLink: GOOGLE_FORM_URL,
-  },
-];
 
-function App() {
-  const [events, setEvents] = useState(fallbackEvents);
+// =====================================================
+// PUBLIC EVENTS PAGE
+// =====================================================
+
+function PublicEvents() {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadEvents() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const data = await getEvents();
+
+      setEvents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Events loading error:", err);
+
+      setError(
+        "Unable to load events. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  // ===================================================
+  // LOAD EVENTS + SOCKET CONNECTION
+  // ===================================================
 
   useEffect(() => {
-    // Get events from backend
     loadEvents();
 
-    // Connect to WebSocket
     socket.connect();
 
-    // Listen for newly uploaded events
+
+    // New event created
     socket.on("new-event", (newEvent) => {
       setEvents((currentEvents) => {
-        const alreadyExists = currentEvents.some(
-          (event) =>
-            event.id === newEvent.id ||
-            event._id === newEvent._id
+
+        const exists = currentEvents.some(
+          (event) => event._id === newEvent._id
         );
 
-        if (alreadyExists) {
+        if (exists) {
           return currentEvents;
         }
 
-        return [...currentEvents, newEvent];
+        return [newEvent, ...currentEvents];
       });
     });
+
+
+    // Event updated
+    socket.on("event-updated", (updatedEvent) => {
+      setEvents((currentEvents) =>
+        currentEvents.map((event) =>
+          event._id === updatedEvent._id
+            ? updatedEvent
+            : event
+        )
+      );
+    });
+
+
+    // Event deleted
+    socket.on("event-deleted", ({ id }) => {
+      setEvents((currentEvents) =>
+        currentEvents.filter(
+          (event) => event._id !== id
+        )
+      );
+    });
+
 
     // Cleanup
     return () => {
       socket.off("new-event");
+      socket.off("event-updated");
+      socket.off("event-deleted");
+
       socket.disconnect();
     };
+
   }, []);
 
-  async function loadEvents() {
-    try {
-      const data = await getEvents();
 
-      // If backend has events, display them
-      if (Array.isArray(data) && data.length > 0) {
-        setEvents(data);
-      }
-    } catch (error) {
-      // Backend is not ready yet
-      console.log(
-        "Backend not connected yet:",
-        error.message
-      );
-    }
-  }
+  // ===================================================
+  // PUBLIC WEBSITE UI
+  // ===================================================
 
   return (
     <div className="app">
 
       {/* Header */}
-      <header className="hero">
-        <p className="tag">TURF HUB</p>
 
-        <h1>Upcoming Events</h1>
+      <header className="hero">
+
+        <p className="tag">
+          TURF HUB
+        </p>
+
+        <h1>
+          Upcoming Events
+        </h1>
 
         <p className="subtitle">
           Find your game. Build your team. Join the competition.
         </p>
+
       </header>
 
+
       {/* Events */}
+
       <main className="events-container">
 
-        {events.length === 0 ? (
+        {/* Loading */}
+
+        {loading && (
           <p className="no-events">
-            No events available yet.
+            Loading events...
           </p>
-        ) : (
+        )}
+
+
+        {/* Error */}
+
+        {!loading && error && (
+          <div className="no-events">
+
+            <p>
+              {error}
+            </p>
+
+            <button onClick={loadEvents}>
+              Retry
+            </button>
+
+          </div>
+        )}
+
+
+        {/* No Events */}
+
+        {!loading &&
+          !error &&
+          events.length === 0 && (
+            <p className="no-events">
+              No events available yet.
+            </p>
+          )
+        }
+
+
+        {/* Event Cards */}
+
+        {!loading &&
+          !error &&
           events.map((event) => (
+
             <div
               className="event-card"
-              key={event.id || event._id}
+              key={event._id}
             >
 
               {/* Event Image */}
-              <img
-                src={event.image}
-                alt={`${event.sport} event`}
-                className="event-image"
-              />
+
+              {event.eventImage && (
+                <img
+                  src={event.eventImage}
+                  alt={event.eventName}
+                  className="event-image"
+                />
+              )}
+
 
               <div className="event-content">
 
                 {/* Sport */}
+
                 <span className="sport-badge">
                   {event.sport}
                 </span>
 
-                {/* Title */}
-                <h2>{event.title}</h2>
 
-                {/* Details */}
+                {/* Event Name */}
+
+                <h2>
+                  {event.eventName}
+                </h2>
+
+
+                {/* Event Details */}
+
                 <div className="event-details">
 
                   <p>
-                    <strong>👥 Team Size:</strong>{" "}
+                    👥 <strong>Team Size:</strong>{" "}
                     {event.teamSize}
                   </p>
 
                   <p>
-                    <strong>📍 Location:</strong>{" "}
+                    📍 <strong>Location:</strong>{" "}
                     {event.location}
+                  </p>
+
+                  <p>
+                    📅 <strong>Event Date:</strong>{" "}
+                    {new Date(
+                      event.eventDate
+                    ).toLocaleDateString()}
+                  </p>
+
+                  <p>
+                    ⏰ <strong>Registration Deadline:</strong>{" "}
+                    {new Date(
+                      event.registrationDeadline
+                    ).toLocaleDateString()}
                   </p>
 
                 </div>
 
+
                 {/* Prizes */}
+
                 <div className="prizes">
 
                   <div>
                     <span>🥇</span>
-                    <small>1st Prize</small>
+
+                    <small>
+                      1st Prize
+                    </small>
+
                     <strong>
-                      {event.firstPrize}
+                      ₹{event.firstPrize}
                     </strong>
                   </div>
+
 
                   <div>
                     <span>🥈</span>
-                    <small>2nd Prize</small>
+
+                    <small>
+                      2nd Prize
+                    </small>
+
                     <strong>
-                      {event.secondPrize}
+                      ₹{event.secondPrize}
                     </strong>
                   </div>
 
+
                   <div>
                     <span>🥉</span>
-                    <small>3rd Prize</small>
+
+                    <small>
+                      3rd Prize
+                    </small>
+
                     <strong>
-                      {event.thirdPrize}
+                      ₹{event.thirdPrize}
                     </strong>
                   </div>
 
                 </div>
 
-                {/* Register */}
+
+                {/* Registration */}
+
                 <a
                   href={
-                    event.registerLink ||
+                    event.registrationLink ||
                     GOOGLE_FORM_URL
                   }
                   target="_blank"
@@ -191,12 +300,52 @@ function App() {
                 </a>
 
               </div>
+
             </div>
+
           ))
-        )}
+        }
 
       </main>
+
     </div>
+  );
+}
+
+
+// =====================================================
+// MAIN APP + ROUTES
+// =====================================================
+
+function App() {
+
+  return (
+    <Routes>
+
+      {/* Public Website */}
+
+      <Route
+        path="/"
+        element={<PublicEvents />}
+      />
+
+
+      {/* Admin Login */}
+
+      <Route
+        path="/admin/login"
+        element={<AdminLogin />}
+      />
+
+
+      {/* Admin Dashboard */}
+
+      <Route
+        path="/admin"
+        element={<AdminDashboard />}
+      />
+
+    </Routes>
   );
 }
 
