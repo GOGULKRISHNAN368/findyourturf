@@ -2,8 +2,7 @@ const mongoose = require("mongoose");
 
 const connectDB = async () => {
     if (!process.env.MONGODB_URI) {
-        console.log("MongoDB URI not configured - running without database");
-        return;
+        throw new Error("MONGODB_URI is not configured");
     }
 
     try {
@@ -11,7 +10,7 @@ const connectDB = async () => {
         console.log("MongoDB Atlas Connected Successfully");
     } catch (error) {
         console.error("MongoDB Connection Failed:", error.message);
-        console.log("Server will continue running without MongoDB");
+        throw error;
     }
 };
 
