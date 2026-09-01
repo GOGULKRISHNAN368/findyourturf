@@ -19,8 +19,7 @@ function AdminLogin() {
 
     try {
       await loginAdmin(email, password);
-
-      navigate("/admin");
+      navigate("/");
     } catch (err) {
       console.error(err);
 

@@ -11,11 +11,9 @@ import "./App.css";
 import { getEvents } from "./services/api";
 import { socket } from "./services/socket";
 
-import AdminLogin from "./pages/AdminLogin";
-import AdminDashboard from "./pages/AdminDashboard";
 
 const DEFAULT_FORM =
-  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieYqHzFFJMdNCIJAvakRza2HU71A/viewform?usp=dialogr";
+  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieyqHzFFJMdNCIJAvakRza2HU71A/viewform?usp=publish-editor";
 
 function useEvents() {
   const [events, setEvents] = useState([]);
@@ -614,16 +612,6 @@ function App() {
         element={<TournamentDetails />}
       />
 
-      {/* ADMIN - SEPARATE */}
-      <Route
-        path="/admin/login"
-        element={<AdminLogin />}
-      />
-
-      <Route
-        path="/admin"
-        element={<AdminDashboard />}
-      />
     </Routes>
   );
 }

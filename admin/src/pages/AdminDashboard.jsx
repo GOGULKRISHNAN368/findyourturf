@@ -50,7 +50,7 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (!token) {
-      navigate("/admin/login");
+      navigate("/login");
       return;
     }
 
@@ -240,7 +240,7 @@ function AdminDashboard() {
   function handleLogout() {
     logoutAdmin();
 
-    navigate("/admin/login");
+    navigate("/login");
   }
 
   if (!token) {
