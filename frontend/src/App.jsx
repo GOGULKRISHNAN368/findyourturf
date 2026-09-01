@@ -15,7 +15,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 
 const DEFAULT_FORM =
-  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieyqHzFFJMdNCIJAvakRza2HU71A/viewform?usp=publish-editor";
+  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieYqHzFFJMdNCIJAvakRza2HU71A/viewform?usp=dialogr";
 
 function useEvents() {
   const [events, setEvents] = useState([]);
