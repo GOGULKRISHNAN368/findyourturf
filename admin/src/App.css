@@ -1496,6 +1496,34 @@ select {
   background: #dff2e4;
 }
 
+.manage-tournament-button {
+  padding: 10px 14px;
+  border: 1px solid #c8c4e8;
+  border-radius: 8px;
+  background: #f0edff;
+  color: #4d38c7;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.delete-event-button {
+  padding: 10px 14px;
+  border: 1px solid #f0b4b4;
+  border-radius: 8px;
+  background: #fff4f4;
+  color: #bd3333;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.back-user-button {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+}
+
 /* ADMIN MOBILE */
 
 @media (max-width: 700px) {

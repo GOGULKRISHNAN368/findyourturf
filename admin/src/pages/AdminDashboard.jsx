@@ -7,9 +7,12 @@ import {
   logoutAdmin,
 } from "../services/auth";
 
-import { getEvents } from "../services/api";
-
-const API_URL = "http://localhost:5000";
+import {
+  getEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+} from "../services/api";
 
 const emptyForm = {
   eventName: "",
@@ -32,21 +35,12 @@ function AdminDashboard() {
   const admin = getAdmin();
 
   const [events, setEvents] = useState([]);
-
   const [form, setForm] = useState(emptyForm);
-
   const [editingId, setEditingId] = useState(null);
-
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
   const [loading, setLoading] = useState(false);
-  const [eventsLoading, setEventsLoading] =
-    useState(true);
-
-  /* =========================
-     AUTH CHECK
-  ========================= */
+  const [eventsLoading, setEventsLoading] = useState(true);
 
   useEffect(() => {
     if (!token) {
@@ -57,81 +51,48 @@ function AdminDashboard() {
     loadEvents();
   }, []);
 
-  /* =========================
-     LOAD EVENTS
-  ========================= */
-
   async function loadEvents() {
     try {
       setEventsLoading(true);
-
       const data = await getEvents();
-
       setEvents(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error(err);
-
-      setError("Unable to load events.");
+      setError(err.message || "Unable to load events.");
     } finally {
       setEventsLoading(false);
     }
   }
 
-  /* =========================
-     FORM CHANGE
-  ========================= */
-
   function handleChange(e) {
     const { name, value } = e.target;
-
     setForm((current) => ({
       ...current,
       [name]: value,
     }));
   }
 
-  /* =========================
-     EDIT EVENT
-  ========================= */
-
   function handleEdit(event) {
     setEditingId(event._id);
-
     setForm({
       eventName: event.eventName || "",
       sport: event.sport || "Cricket",
       eventDate: formatInputDate(event.eventDate),
       teamSize: event.teamSize || "",
       location: event.location || "",
-      registrationDeadline:
-        formatInputDate(
-          event.registrationDeadline
-        ),
+      registrationDeadline: formatInputDate(event.registrationDeadline),
       firstPrize: event.firstPrize || "",
       secondPrize: event.secondPrize || "",
       thirdPrize: event.thirdPrize || "",
       eventImage: event.eventImage || "",
-      registrationLink:
-        event.registrationLink || "",
+      registrationLink: event.registrationLink || "",
     });
-
     setMessage("");
-
     setError("");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
-
-  /* =========================
-     SUBMIT
-  ========================= */
 
   async function handleSubmit(e) {
     e.preventDefault();
-
     setMessage("");
     setError("");
 
@@ -142,10 +103,7 @@ function AdminDashboard() {
       !form.location ||
       !form.registrationDeadline
     ) {
-      setError(
-        "Please fill all required fields."
-      );
-
+      setError("Please fill all required fields.");
       return;
     }
 
@@ -158,88 +116,61 @@ function AdminDashboard() {
         eventDate: form.eventDate,
         teamSize: form.teamSize,
         location: form.location,
-        registrationDeadline:
-          form.registrationDeadline,
-
+        registrationDeadline: form.registrationDeadline,
         firstPrize: Number(form.firstPrize || 0),
-        secondPrize: Number(
-          form.secondPrize || 0
-        ),
-        thirdPrize: Number(
-          form.thirdPrize || 0
-        ),
-
+        secondPrize: Number(form.secondPrize || 0),
+        thirdPrize: Number(form.thirdPrize || 0),
         eventImage: form.eventImage,
-        registrationLink:
-          form.registrationLink,
+        registrationLink: form.registrationLink,
       };
 
-      const url = editingId
-        ? `${API_URL}/api/events/${editingId}`
-        : `${API_URL}/api/events`;
-
-      const response = await fetch(url, {
-        method: editingId ? "PUT" : "POST",
-
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-            "Unable to save event."
-        );
+      if (editingId) {
+        await updateEvent(editingId, payload);
+        setMessage("Event updated successfully.");
+      } else {
+        await createEvent(payload);
+        setMessage("Event created successfully.");
       }
 
-      setMessage(
-        editingId
-          ? "Event updated successfully."
-          : "Event created successfully."
-      );
-
       setEditingId(null);
-
       setForm(emptyForm);
-
       await loadEvents();
     } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to save event."
-      );
+      setError(err.message || "Unable to save event.");
     } finally {
       setLoading(false);
     }
   }
 
-  /* =========================
-     CANCEL EDIT
-  ========================= */
-
   function cancelEdit() {
     setEditingId(null);
     setForm(emptyForm);
-
     setMessage("");
     setError("");
   }
 
-  /* =========================
-     LOGOUT
-  ========================= */
+  async function handleDelete(event) {
+    const confirmed = window.confirm(`Delete ${event.eventName}?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteEvent(event._id);
+      setMessage("Event deleted successfully.");
+      await loadEvents();
+    } catch (err) {
+      setError(err.message || "Unable to delete event.");
+    }
+  }
+
+  function handleManageTournament(event) {
+    navigate(`/tournament/${event._id}`);
+  }
 
   function handleLogout() {
     logoutAdmin();
-
     navigate("/login");
   }
 
@@ -249,16 +180,9 @@ function AdminDashboard() {
 
   return (
     <div className="admin-page">
-
-      {/* ADMIN HEADER */}
-
       <header className="admin-topbar">
-
         <div className="admin-brand">
-          <div className="admin-brand-icon">
-            ⚽
-          </div>
-
+          <div className="admin-brand-icon">⚽</div>
           <div>
             <strong>TURF HUB</strong>
             <small>ADMIN</small>
@@ -266,86 +190,41 @@ function AdminDashboard() {
         </div>
 
         <div className="admin-account">
-
           <div className="admin-user">
-            <strong>
-              {admin?.name || "Admin"}
-            </strong>
-
-            <span>
-              {admin?.email || ""}
-            </span>
+            <strong>{admin?.name || "Admin"}</strong>
+            <span>{admin?.email || ""}</span>
           </div>
-
-          <button
-            onClick={handleLogout}
-            className="admin-logout"
-          >
+          <button onClick={handleLogout} className="admin-logout">
             Logout
           </button>
-
         </div>
-
       </header>
 
       <main className="admin-main">
-
-        {/* HEADING */}
-
         <div className="admin-heading">
-
           <div>
             <span>EVENT MANAGEMENT</span>
-
             <h1>Admin Dashboard</h1>
-
-            <p>
-              Create and update tournament
-              information.
-            </p>
+            <p>Create and update tournament information.</p>
           </div>
-
         </div>
 
-        {/* FORM */}
-
         <section className="admin-form-card">
-
           <div className="admin-card-heading">
-
             <div>
-              <span>
-                {editingId
-                  ? "UPDATE EVENT"
-                  : "CREATE EVENT"}
-              </span>
-
-              <h2>
-                {editingId
-                  ? "Update Event"
-                  : "Add New Event"}
-              </h2>
+              <span>{editingId ? "UPDATE EVENT" : "CREATE EVENT"}</span>
+              <h2>{editingId ? "Update Event" : "Add New Event"}</h2>
             </div>
-
             {editingId && (
-              <button
-                className="cancel-button"
-                onClick={cancelEdit}
-              >
+              <button className="cancel-button" onClick={cancelEdit}>
                 Cancel
               </button>
             )}
-
           </div>
 
-          <form
-            className="admin-form"
-            onSubmit={handleSubmit}
-          >
-
+          <form className="admin-form" onSubmit={handleSubmit}>
             <div className="form-field full">
               <label>Event Name *</label>
-
               <input
                 name="eventName"
                 value={form.eventName}
@@ -356,28 +235,15 @@ function AdminDashboard() {
             </div>
 
             <div className="form-row">
-
               <div className="form-field">
                 <label>Sport *</label>
-
-                <select
-                  name="sport"
-                  value={form.sport}
-                  onChange={handleChange}
-                >
-                  <option value="Cricket">
-                    Cricket
-                  </option>
-
-                  <option value="Football">
-                    Football
-                  </option>
+                <select name="sport" value={form.sport} onChange={handleChange}>
+                  <option value="Cricket">Cricket</option>
+                  <option value="Football">Football</option>
                 </select>
               </div>
-
               <div className="form-field">
                 <label>Team Size *</label>
-
                 <input
                   name="teamSize"
                   value={form.teamSize}
@@ -386,14 +252,11 @@ function AdminDashboard() {
                   required
                 />
               </div>
-
             </div>
 
             <div className="form-row">
-
               <div className="form-field">
                 <label>Event Date *</label>
-
                 <input
                   type="date"
                   name="eventDate"
@@ -402,28 +265,20 @@ function AdminDashboard() {
                   required
                 />
               </div>
-
               <div className="form-field">
-                <label>
-                  Registration Deadline *
-                </label>
-
+                <label>Registration Deadline *</label>
                 <input
                   type="date"
                   name="registrationDeadline"
-                  value={
-                    form.registrationDeadline
-                  }
+                  value={form.registrationDeadline}
                   onChange={handleChange}
                   required
                 />
               </div>
-
             </div>
 
             <div className="form-field full">
               <label>Location *</label>
-
               <input
                 name="location"
                 value={form.location}
@@ -433,15 +288,11 @@ function AdminDashboard() {
               />
             </div>
 
-            <div className="prize-heading">
-              Prize Details
-            </div>
+            <div className="prize-heading">Prize Details</div>
 
             <div className="form-row three">
-
               <div className="form-field">
                 <label>1st Prize</label>
-
                 <input
                   type="number"
                   min="0"
@@ -451,10 +302,8 @@ function AdminDashboard() {
                   placeholder="10000"
                 />
               </div>
-
               <div className="form-field">
                 <label>2nd Prize</label>
-
                 <input
                   type="number"
                   min="0"
@@ -464,10 +313,8 @@ function AdminDashboard() {
                   placeholder="5000"
                 />
               </div>
-
               <div className="form-field">
                 <label>3rd Prize</label>
-
                 <input
                   type="number"
                   min="0"
@@ -477,12 +324,10 @@ function AdminDashboard() {
                   placeholder="2500"
                 />
               </div>
-
             </div>
 
             <div className="form-field full">
               <label>Event Image URL</label>
-
               <input
                 type="url"
                 name="eventImage"
@@ -493,30 +338,18 @@ function AdminDashboard() {
             </div>
 
             <div className="form-field full">
-              <label>
-                Google Form Registration Link
-              </label>
-
+              <label>Google Form Registration Link</label>
               <input
                 type="url"
                 name="registrationLink"
                 value={form.registrationLink}
                 onChange={handleChange}
-                placeholder="https://docs.google.com/forms/..."
+                placeholder="https://docs.google.com/forms/d/e/<FORM_ID>/viewform"
               />
             </div>
 
-            {message && (
-              <div className="admin-success">
-                ✓ {message}
-              </div>
-            )}
-
-            {error && (
-              <div className="admin-form-error">
-                {error}
-              </div>
-            )}
+            {message && <div className="admin-success">✓ {message}</div>}
+            {error && <div className="admin-form-error">{error}</div>}
 
             <button
               type="submit"
@@ -529,135 +362,86 @@ function AdminDashboard() {
                 ? "Update Event"
                 : "Create Event"}
             </button>
-
           </form>
         </section>
 
-        {/* EXISTING EVENTS */}
-
         <section className="existing-events">
-
           <div className="admin-card-heading">
-
             <div>
               <span>EVENTS</span>
               <h2>Existing Events</h2>
             </div>
-
-            <button
-              className="refresh-button"
-              onClick={loadEvents}
-            >
+            <button className="refresh-button" onClick={loadEvents}>
               ↻ Refresh
             </button>
-
           </div>
 
           {eventsLoading ? (
-            <div className="admin-empty">
-              Loading events...
-            </div>
+            <div className="admin-empty">Loading events...</div>
           ) : events.length === 0 ? (
-            <div className="admin-empty">
-              No events created yet.
-            </div>
+            <div className="admin-empty">No events created yet.</div>
           ) : (
             <div className="admin-event-list">
-
               {events.map((event) => (
-                <div
-                  className="admin-event-item"
-                  key={event._id}
-                >
-
+                <div className="admin-event-item" key={event._id}>
                   <div className="admin-event-image">
-
                     {event.eventImage ? (
-                      <img
-                        src={event.eventImage}
-                        alt={event.eventName}
-                      />
+                      <img src={event.eventImage} alt={event.eventName} />
                     ) : (
-                      <span>
-                        {event.sport ===
-                        "Football"
-                          ? "⚽"
-                          : "🏏"}
-                      </span>
+                      <span>{event.sport === "Football" ? "⚽" : "🏏"}</span>
                     )}
-
                   </div>
 
                   <div className="admin-event-details">
-
-                    <span>
-                      {event.sport}
-                    </span>
-
-                    <h3>
-                      {event.eventName}
-                    </h3>
-
+                    <span>{event.sport}</span>
+                    <h3>{event.eventName}</h3>
                     <p>
-                      {event.teamSize} •{" "}
-                      {event.location}
+                      {event.teamSize} • {event.location}
                     </p>
-
-                    <small>
-                      {formatDate(
-                        event.eventDate
-                      )}
-                    </small>
-
+                    <small>{formatDate(event.eventDate)}</small>
                   </div>
 
                   <button
                     className="update-event-button"
-                    onClick={() =>
-                      handleEdit(event)
-                    }
+                    onClick={() => handleEdit(event)}
                   >
                     Update Event
                   </button>
 
+                  <button
+                    className="manage-tournament-button"
+                    onClick={() => handleManageTournament(event)}
+                  >
+                    Manage Tournament
+                  </button>
+
+                  <button
+                    className="delete-event-button"
+                    onClick={() => handleDelete(event)}
+                  >
+                    Delete
+                  </button>
                 </div>
               ))}
-
             </div>
           )}
-
         </section>
-
       </main>
     </div>
   );
 }
 
-/* =========================
-   HELPERS
-========================= */
-
 function formatInputDate(date) {
   if (!date) return "";
-
   const value = new Date(date);
-
-  if (Number.isNaN(value.getTime())) {
-    return "";
-  }
-
+  if (Number.isNaN(value.getTime())) return "";
   return value.toISOString().split("T")[0];
 }
 
 function formatDate(date) {
   if (!date) return "-";
-
   const value = new Date(date);
-
-  if (Number.isNaN(value.getTime())) {
-    return "-";
-  }
-
+  if (Number.isNaN(value.getTime())) return "-";
   return value.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",

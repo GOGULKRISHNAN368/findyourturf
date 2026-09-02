@@ -773,6 +773,108 @@ select {
   background: #6040ed;
 }
 
+.register-unavailable {
+  display: inline-flex;
+  padding: 14px 23px;
+  border-radius: 8px;
+  background: #eceaf3;
+  color: #6d7180;
+  font-weight: 700;
+}
+
+.tournament-section {
+  margin-top: 35px;
+  padding-top: 30px;
+  border-top: 1px solid #ececf2;
+}
+
+.section-kicker {
+  color: #7655ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.public-teams,
+.public-winners,
+.public-matches {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.public-round-block {
+  margin-top: 24px;
+}
+
+.public-round-block h3 {
+  margin: 0 0 12px;
+}
+
+.public-teams {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.public-team,
+.public-match,
+.public-winners div {
+  padding: 18px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.public-winners {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.public-match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 16px;
+}
+
+.public-score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.public-winner-banner {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f5f5f5;
+  font-weight: 700;
+}
+
+.match-status {
+  padding: 7px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f2f4f7;
+}
+
+.match-status.live {
+  background: #fee4e2;
+  color: #d92d20;
+}
+
+.match-status.completed {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.status-box.compact {
+  padding: 30px 16px;
+}
+
 /* =================================
    NOT FOUND
 ================================= */
