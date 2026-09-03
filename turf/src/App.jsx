@@ -309,7 +309,7 @@ function isSameEvent(tournament, eventId) {
 }
 
 const GOOGLE_FORM_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieYqHzFFJMdNCIJAvakRza2HU71A/viewform?usp=publish-editor";
+  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieYqHzFFJMdNCIJAvakRza2HU71A/viewform";
 
 function TournamentDetails() {
   const { id } = useParams();

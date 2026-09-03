@@ -210,8 +210,49 @@ router.post("/:eventId", protect, async (req, res) => {
       tournament.teams = teams;
     }
 
+    const shouldGenerate = Boolean(
+      req.body.generateRound1 || req.body.generateMatches
+    );
+
+    if (shouldGenerate) {
+      if (teams.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Add at least 2 teams to generate Round 1 matches.",
+        });
+      }
+
+      // Preserve any non-Round 1 matches
+      const otherRoundMatches = (tournament.matches || []).filter(
+        (m) => m.round !== "Round 1"
+      );
+
+      const round1Matches = [];
+      let matchNumber = 1;
+      for (let i = 0; i < teams.length; i += 2) {
+        const team1 = teams[i];
+        const team2 = teams[i + 1] || "";
+        round1Matches.push({
+          round: "Round 1",
+          matchNumber: matchNumber++,
+          team1,
+          team2,
+          team1Score: 0,
+          team1Wickets: 0,
+          team2Score: 0,
+          team2Wickets: 0,
+          status: "Upcoming",
+          winner: "",
+        });
+      }
+
+      tournament.matches = [...round1Matches, ...otherRoundMatches];
+    }
+
     const payload = await saveAndEmit(req, tournament, {
-      message: "Teams saved successfully",
+      message: shouldGenerate
+        ? "First round matches generated successfully"
+        : "Teams saved successfully",
     });
 
     res.status(201).json(payload);

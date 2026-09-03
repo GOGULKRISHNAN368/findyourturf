@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
 import {
   getTournament,
+  getEventById,
   assignTeams,
+  generateFirstRound,
   editTeam,
   deleteTeam,
   updateLiveScore,
@@ -12,12 +13,33 @@ import {
   updateMatch,
   deleteMatch,
 } from "../services/api";
+import { socket } from "../services/socket";
+import Badge from "../components/common/Badge";
+import EmptyState from "../components/common/EmptyState";
+import Modal from "../components/common/Modal";
+import {
+  IconArrowLeft,
+  IconPlus,
+  IconEdit,
+  IconTrash,
+  IconCheck,
+  IconAlertCircle,
+  IconLive,
+  IconTrophy,
+  IconCrown,
+  IconClock,
+  IconMapPin,
+  IconUsers,
+  IconRefresh,
+  IconSparkles,
+} from "../components/common/Icons";
 
 const EMPTY_TOURNAMENT = {
   teams: [],
   matches: [],
   winner1: null,
   winner2: null,
+  champion: null,
 };
 
 const ROUNDS = ["Round 1", "Round 2", "Semi Final", "Final"];
@@ -26,61 +48,113 @@ export default function TournamentManagement() {
   const { eventId } = useParams();
   const navigate = useNavigate();
 
+  const [eventData, setEventData] = useState(null);
   const [tournament, setTournament] = useState(EMPTY_TOURNAMENT);
+  const [activeRoundTab, setActiveRoundTab] = useState("Round 1");
   const [teamName, setTeamName] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingTeams, setSavingTeams] = useState(false);
+  const [generatingRound, setGeneratingRound] = useState(false);
   const [savingMatch, setSavingMatch] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isNetworkError, setIsNetworkError] = useState(false);
 
   const [newRound, setNewRound] = useState("Round 1");
   const [newTeam1, setNewTeam1] = useState("");
   const [newTeam2, setNewTeam2] = useState("");
 
+  const [editTeamModalOpen, setEditTeamModalOpen] = useState(false);
+  const [editingTeamName, setEditingTeamName] = useState({ old: "", new: "" });
+
   const isPersisted = Boolean(tournament?._id);
   const teams = tournament?.teams || [];
   const matches = tournament?.matches || [];
 
-  const loadTournament = async () => {
+  const loadData = async () => {
     if (!eventId) return;
 
     try {
       setLoading(true);
       setError("");
-      const data = await getTournament(eventId);
-      setTournament(data || EMPTY_TOURNAMENT);
+      setIsNetworkError(false);
+
+      const [tourneyRes, evRes] = await Promise.allSettled([
+        getTournament(eventId),
+        getEventById(eventId),
+      ]);
+
+      if (tourneyRes.status === "fulfilled") {
+        setTournament(tourneyRes.value || EMPTY_TOURNAMENT);
+      } else {
+        const err = tourneyRes.reason;
+        if (err?.isNetworkError) {
+          setIsNetworkError(true);
+          setError(err.message);
+        } else if (err?.status !== 404) {
+          setError(err?.message || "Unable to load tournament.");
+        }
+      }
+
+      if (evRes.status === "fulfilled" && evRes.value) {
+        setEventData(evRes.value);
+      }
     } catch (err) {
+      if (err?.isNetworkError) {
+        setIsNetworkError(true);
+      }
       setError(err.message || "Unable to load tournament.");
-      setTournament(EMPTY_TOURNAMENT);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadTournament();
+    loadData();
+
+    const handleTournamentUpdate = (updated) => {
+      if (
+        updated &&
+        (updated.event === eventId || updated.event?._id === eventId)
+      ) {
+        setTournament(updated);
+      }
+    };
+
+    socket.on("tournament-updated", handleTournamentUpdate);
+
+    return () => {
+      socket.off("tournament-updated", handleTournamentUpdate);
+    };
   }, [eventId]);
 
-  const handleAddTeam = () => {
-    const trimmedName = teamName.trim();
-
-    if (!trimmedName) {
-      setError("Enter a valid team name.");
-      return;
-    }
-
-    if (
-      teams.some((team) => team.toLowerCase() === trimmedName.toLowerCase())
-    ) {
-      setError("Team already exists.");
-      return;
-    }
-
+  function notifySuccess(msg) {
+    setMessage(msg);
     setError("");
+    setTimeout(() => setMessage(""), 5000);
+  }
+
+  function notifyError(err) {
+    setError(err);
+    setMessage("");
+    setTimeout(() => setError(""), 6000);
+  }
+
+  const handleAddTeam = () => {
+    const trimmed = teamName.trim();
+    if (!trimmed) {
+      notifyError("Enter a valid team name.");
+      return;
+    }
+
+    if (teams.some((team) => team.toLowerCase() === trimmed.toLowerCase())) {
+      notifyError("A team with this name already exists.");
+      return;
+    }
+
     setTournament((prev) => ({
       ...(prev || EMPTY_TOURNAMENT),
-      teams: [...(prev?.teams || []), trimmedName],
+      teams: [...(prev?.teams || []), trimmed],
     }));
     setTeamName("");
   };
@@ -89,72 +163,86 @@ export default function TournamentManagement() {
     if (!eventId || savingTeams) return;
 
     if (teams.length < 1) {
-      setError("Add at least one team.");
+      notifyError("Add at least one team.");
       return;
     }
 
     try {
       setSavingTeams(true);
-      setError("");
-      setMessage("");
       const data = await assignTeams(eventId, teams);
       setTournament(data.tournament || data);
-      setMessage("Teams saved. Matches are not created automatically.");
+      notifySuccess("Team roster saved successfully!");
     } catch (err) {
-      setError(err.message || "Failed to save teams");
+      notifyError(err.message || "Failed to save teams.");
     } finally {
       setSavingTeams(false);
     }
   };
 
-  const handleEditTeam = async (team) => {
-    const newName = window.prompt("Enter new team name:", team);
-    if (newName === null) return;
+  const handleGenerateFirstRound = async () => {
+    if (!eventId || generatingRound) return;
 
-    const trimmedName = newName.trim();
-    if (!trimmedName) {
-      setError("Team name cannot be empty.");
-      return;
-    }
-    if (trimmedName === team) return;
-
-    if (
-      teams.some(
-        (item) =>
-          item.toLowerCase() === trimmedName.toLowerCase() && item !== team
-      )
-    ) {
-      setError("A team with this name already exists.");
-      return;
-    }
-
-    if (!isPersisted) {
-      setTournament((prev) => ({
-        ...prev,
-        teams: (prev.teams || []).map((item) =>
-          item === team ? trimmedName : item
-        ),
-      }));
+    if (teams.length < 2) {
+      notifyError("Please add at least 2 teams to generate First Round matches.");
       return;
     }
 
     try {
-      const data = await editTeam(eventId, team, trimmedName);
+      setGeneratingRound(true);
+      const data = await generateFirstRound(eventId, teams);
       setTournament(data.tournament || data);
-      setMessage("Team updated.");
-      setError("");
+      setActiveRoundTab("Round 1");
+      notifySuccess("First round matches generated successfully!");
     } catch (err) {
-      setError(err.message || "Failed to edit team");
+      notifyError(err.message || "Failed to generate first round matches.");
+    } finally {
+      setGeneratingRound(false);
     }
   };
 
-  const handleDeleteTeam = async (team) => {
-    if (!window.confirm(`Delete ${team}?`)) return;
+  const openEditTeam = (team) => {
+    setEditingTeamName({ old: team, new: team });
+    setEditTeamModalOpen(true);
+  };
+
+  const handleSaveEditedTeam = async () => {
+    const { old: oldName, new: newName } = editingTeamName;
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      notifyError("Team name cannot be empty.");
+      return;
+    }
+    if (trimmed === oldName) {
+      setEditTeamModalOpen(false);
+      return;
+    }
 
     if (!isPersisted) {
       setTournament((prev) => ({
         ...prev,
-        teams: (prev.teams || []).filter((item) => item !== team),
+        teams: (prev.teams || []).map((t) => (t === oldName ? trimmed : t)),
+      }));
+      setEditTeamModalOpen(false);
+      return;
+    }
+
+    try {
+      const data = await editTeam(eventId, oldName, trimmed);
+      setTournament(data.tournament || data);
+      notifySuccess(`Team renamed to "${trimmed}".`);
+      setEditTeamModalOpen(false);
+    } catch (err) {
+      notifyError(err.message || "Failed to edit team.");
+    }
+  };
+
+  const handleDeleteTeam = async (team) => {
+    if (!window.confirm(`Delete team "${team}"?`)) return;
+
+    if (!isPersisted) {
+      setTournament((prev) => ({
+        ...prev,
+        teams: (prev.teams || []).filter((t) => t !== team),
       }));
       return;
     }
@@ -162,31 +250,31 @@ export default function TournamentManagement() {
     try {
       const data = await deleteTeam(eventId, team);
       setTournament(data.tournament || data);
-      setMessage("Team deleted.");
-      setError("");
+      notifySuccess(`Team "${team}" deleted.`);
     } catch (err) {
-      setError(err.message || "Failed to delete team");
+      notifyError(err.message || "Failed to delete team.");
     }
   };
 
   const handleCreateMatch = async () => {
     if (savingMatch) return;
 
-    if (newTeam1 && newTeam2 && newTeam1 === newTeam2) {
-      setError("Team A and Team B cannot be the same team.");
+    if (
+      newTeam1 &&
+      newTeam2 &&
+      newTeam1.toLowerCase() === newTeam2.toLowerCase()
+    ) {
+      notifyError("Team A and Team B cannot be the same team.");
       return;
     }
 
     try {
       setSavingMatch(true);
-      setError("");
-      setMessage("");
 
       let current = tournament;
-
       if (!isPersisted) {
         if (teams.length < 1) {
-          setError("Save teams before creating a match.");
+          notifyError("Save teams before creating a match.");
           return;
         }
         const saved = await assignTeams(eventId, teams);
@@ -203,9 +291,9 @@ export default function TournamentManagement() {
       setTournament(data.tournament || data);
       setNewTeam1("");
       setNewTeam2("");
-      setMessage("Match saved.");
+      notifySuccess(`Match created for ${newRound}!`);
     } catch (err) {
-      setError(err.message || "Failed to create match");
+      notifyError(err.message || "Failed to create match.");
     } finally {
       setSavingMatch(false);
     }
@@ -215,10 +303,9 @@ export default function TournamentManagement() {
     try {
       const data = await updateMatch(eventId, matchId, payload);
       setTournament(data.tournament || data);
-      setMessage("Match updated.");
-      setError("");
+      notifySuccess("Match details saved.");
     } catch (err) {
-      setError(err.message || "Failed to update match");
+      notifyError(err.message || "Failed to update match.");
     }
   };
 
@@ -228,35 +315,19 @@ export default function TournamentManagement() {
     try {
       const data = await deleteMatch(eventId, matchId);
       setTournament(data.tournament || data);
-      setMessage("Match deleted.");
-      setError("");
+      notifySuccess("Match deleted.");
     } catch (err) {
-      setError(err.message || "Failed to delete match");
+      notifyError(err.message || "Failed to delete match.");
     }
   };
 
-  const handleScoreUpdate = async (
-    matchId,
-    team1Score,
-    team1Wickets,
-    team2Score,
-    team2Wickets,
-    status
-  ) => {
+  const handleScoreUpdate = async (matchId, payload) => {
     try {
-      const data = await updateLiveScore(eventId, matchId, {
-        team1Score: Number(team1Score) || 0,
-        team1Wickets: Number(team1Wickets) || 0,
-        team2Score: Number(team2Score) || 0,
-        team2Wickets: Number(team2Wickets) || 0,
-        status,
-      });
+      const data = await updateLiveScore(eventId, matchId, payload);
       setTournament(data.tournament || data);
-      setMessage("Live score updated.");
-      setError("");
+      notifySuccess("Live score updated!");
     } catch (err) {
-      setError(err.message || "Failed to update score");
-      throw err;
+      notifyError(err.message || "Failed to update live score.");
     }
   };
 
@@ -264,277 +335,413 @@ export default function TournamentManagement() {
     try {
       const data = await setMatchWinner(eventId, matchId, winner);
       setTournament(data.tournament || data);
-      setMessage(winner ? "Winner updated." : "Winner cleared.");
-      setError("");
+      notifySuccess(winner ? `Winner set: ${winner}` : "Winner cleared.");
     } catch (err) {
-      setError(err.message || "Failed to set winner");
+      notifyError(err.message || "Failed to set winner.");
     }
   };
 
   if (!eventId) {
     return (
-      <div style={styles.empty}>
-        <h2>Event not found</h2>
-        <p>No event ID was provided.</p>
+      <div style={{ padding: "40px", maxWidth: "600px", margin: "0 auto" }}>
+        <EmptyState
+          icon={IconAlertCircle}
+          title="Event Not Found"
+          description="No event ID was provided in the route."
+          actionLabel="Return to Dashboard"
+          onAction={() => navigate("/admin")}
+        />
       </div>
     );
   }
 
-  if (loading) {
-    return <div style={styles.empty}>Loading tournament...</div>;
-  }
-
   return (
-    <div style={styles.container}>
-      <div style={styles.pageHeader}>
-        <div>
-          <button style={styles.backButton} onClick={() => navigate("/admin")}>
-            ← Back to Dashboard
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-app)", padding: "28px 24px" }}>
+      <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+        {/* Top Breadcrumb navigation */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate("/admin")}
+          >
+            <IconArrowLeft size={16} />
+            <span>Back to Dashboard</span>
           </button>
-          <span style={styles.pageLabel}>TOURNAMENT MANAGEMENT</span>
-          <h1 style={styles.title}>Tournament Management</h1>
-          <p style={styles.subtitle}>
-            Manually create matches, assign teams, and select winners.
-          </p>
+
+          <div className="live-sync-indicator">
+            <span className="pulse-dot" />
+            <span>Live Sync Active</span>
+          </div>
+        </div>
+
+        {/* Feedback Banners */}
+        {message && (
+          <div className="alert-banner success">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <IconCheck size={18} />
+              <strong>{message}</strong>
+            </div>
+            <button onClick={() => setMessage("")} aria-label="Dismiss message">
+              ×
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="alert-banner error">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <IconAlertCircle size={18} />
+              <span>{error}</span>
+            </div>
+            {isNetworkError ? (
+              <button className="btn btn-secondary btn-sm" onClick={loadData}>
+                <IconRefresh size={14} /> Retry
+              </button>
+            ) : (
+              <button onClick={() => setError("")} aria-label="Dismiss error">
+                ×
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Hero Card */}
+        {eventData && (
+          <div className="tournament-hero-card">
+            <div className="hero-top-bar">
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <Badge sport={eventData.sport} />
+                <Badge status={eventData.status || "Upcoming"} />
+              </div>
+              <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                Event #{eventData._id.slice(-6)}
+              </span>
+            </div>
+
+            <h1 className="hero-event-title">{eventData.eventName}</h1>
+
+            <div className="hero-stats-row">
+              <div className="hero-stat-pill">
+                <span>Venue</span>
+                <span>{eventData.location}</span>
+              </div>
+              <div className="hero-stat-pill">
+                <span>Date</span>
+                <span>{formatDate(eventData.eventDate)}</span>
+              </div>
+              <div className="hero-stat-pill">
+                <span>Team Size</span>
+                <span>{eventData.teamSize}</span>
+              </div>
+              <div className="hero-stat-pill">
+                <span>1st Place Prize</span>
+                <span style={{ color: "#fbbf24" }}>
+                  ₹{Number(eventData.firstPrize || 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Winners Showcase */}
+        <div className="winners-podium-grid">
+          <div className="winner-card">
+            <div className="winner-trophy-icon">
+              <IconTrophy size={20} />
+            </div>
+            <div className="winner-details">
+              <span className="winner-stage-label">Round 1 - Winner 1</span>
+              <strong className="winner-team-name">
+                {tournament?.winner1 || "Waiting for match..."}
+              </strong>
+            </div>
+          </div>
+
+          <div className="winner-card">
+            <div className="winner-trophy-icon">
+              <IconTrophy size={20} />
+            </div>
+            <div className="winner-details">
+              <span className="winner-stage-label">Round 1 - Winner 2</span>
+              <strong className="winner-team-name">
+                {tournament?.winner2 || "Waiting for match..."}
+              </strong>
+            </div>
+          </div>
+
+          <div className="winner-card champion">
+            <div className="winner-trophy-icon">
+              <IconCrown size={22} />
+            </div>
+            <div className="winner-details">
+              <span className="winner-stage-label" style={{ color: "#d97706" }}>
+                Champion
+              </span>
+              <strong className="winner-team-name" style={{ color: "#b45309" }}>
+                {tournament?.champion || "Waiting for finals..."}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Team Assignment Section */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-left">
+              <span className="card-badge-label">Roster & Generation</span>
+              <h2 className="card-title">Team Management ({teams.length})</h2>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={handleSaveTeams}
+                disabled={savingTeams || teams.length === 0}
+              >
+                <IconCheck size={16} />
+                <span>{savingTeams ? "Saving..." : "Save Teams"}</span>
+              </button>
+
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleGenerateFirstRound}
+                disabled={generatingRound || teams.length < 2}
+              >
+                <IconSparkles size={16} />
+                <span>{generatingRound ? "Generating..." : "Generate First Round"}</span>
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px", maxWidth: "520px", marginBottom: "16px" }}>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Enter team name"
+              value={teamName}
+              onChange={(e) => setTeamName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddTeam();
+              }}
+            />
+            <button className="btn btn-secondary" onClick={handleAddTeam}>
+              <IconPlus size={16} />
+              <span>Add Team</span>
+            </button>
+          </div>
+
+          {teams.length === 0 ? (
+            <EmptyState
+              icon={IconUsers}
+              title="No teams added yet"
+              description="Add teams using the input above, then click 'Generate First Round'."
+            />
+          ) : (
+            <div className="team-chips-grid">
+              {teams.map((t, idx) => (
+                <div className="team-chip" key={`${t}-${idx}`}>
+                  <div className="team-chip-info">
+                    <span className="team-chip-number">{idx + 1}</span>
+                    <span className="team-chip-name">{t}</span>
+                  </div>
+                  <div className="team-chip-actions">
+                    <button
+                      className="team-chip-btn"
+                      onClick={() => openEditTeam(t)}
+                      title="Edit team"
+                      aria-label="Edit team"
+                    >
+                      <IconEdit size={14} />
+                    </button>
+                    <button
+                      className="team-chip-btn delete"
+                      onClick={() => handleDeleteTeam(t)}
+                      title="Remove team"
+                      aria-label="Remove team"
+                    >
+                      <IconTrash size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Add Match Section */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-left">
+              <span className="card-badge-label">Match Builder</span>
+              <h2 className="card-title">Schedule Fixture</h2>
+            </div>
+          </div>
+
+          <div className="form-grid">
+            <div className="form-group col-4">
+              <label className="form-label">Round *</label>
+              <select
+                className="form-control"
+                value={newRound}
+                onChange={(e) => setNewRound(e.target.value)}
+              >
+                {ROUNDS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group col-4">
+              <label className="form-label">Team A *</label>
+              <select
+                className="form-control"
+                value={newTeam1}
+                onChange={(e) => setNewTeam1(e.target.value)}
+              >
+                <option value="">Select Team A (or TBD)</option>
+                {teams.map((t) => (
+                  <option key={`a-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group col-4">
+              <label className="form-label">Team B *</label>
+              <select
+                className="form-control"
+                value={newTeam2}
+                onChange={(e) => setNewTeam2(e.target.value)}
+              >
+                <option value="">Select Team B (or TBD)</option>
+                {teams.map((t) => (
+                  <option key={`b-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-12" style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleCreateMatch}
+                disabled={savingMatch}
+              >
+                <IconPlus size={16} />
+                <span>Add Match</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bracket Matches Section */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-left">
+              <span className="card-badge-label">Bracket</span>
+              <h2 className="card-title">Tournament Matches ({matches.length})</h2>
+            </div>
+          </div>
+
+          <div className="rounds-nav-tabs">
+            {ROUNDS.map((r) => {
+              const count = matches.filter((m) => m.round === r).length;
+              return (
+                <button
+                  key={r}
+                  className={`round-tab-btn ${activeRoundTab === r ? "active" : ""}`}
+                  onClick={() => setActiveRoundTab(r)}
+                >
+                  {r} {count > 0 && `(${count})`}
+                </button>
+              );
+            })}
+          </div>
+
+          {(() => {
+            const roundMatches = matches
+              .filter((m) => m.round === activeRoundTab)
+              .sort((a, b) => a.matchNumber - b.matchNumber);
+
+            if (roundMatches.length === 0) {
+              return (
+                <EmptyState
+                  icon={IconTrophy}
+                  title={`No matches in ${activeRoundTab}`}
+                  description="Use 'Generate First Round' or Match Builder above to schedule matches."
+                />
+              );
+            }
+
+            return (
+              <div className="matches-grid">
+                {roundMatches.map((match) => (
+                  <StandaloneMatchCard
+                    key={match._id}
+                    match={match}
+                    teams={teams}
+                    onScoreUpdate={handleScoreUpdate}
+                    onWinnerUpdate={handleWinner}
+                    onSave={handleUpdateMatch}
+                    onDelete={handleDeleteMatch}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
-      {message && <div style={styles.success}>{message}</div>}
-      {error && <div style={styles.error}>{error}</div>}
-
-      <section style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <span style={styles.sectionLabel}>TEAMS</span>
-            <h2 style={styles.sectionTitle}>Assign Teams</h2>
+      {/* Edit Team Modal */}
+      <Modal
+        isOpen={editTeamModalOpen}
+        onClose={() => setEditTeamModalOpen(false)}
+        title="Rename Team"
+        maxWidth="420px"
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="form-group">
+            <label className="form-label">Team Name</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editingTeamName.new}
+              onChange={(e) =>
+                setEditingTeamName({ ...editingTeamName, new: e.target.value })
+              }
+              autoFocus
+            />
           </div>
-          <span style={styles.teamCount}>{teams.length} Teams</span>
-        </div>
 
-        <div style={styles.addRow}>
-          <input
-            value={teamName}
-            onChange={(e) => setTeamName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAddTeam();
-            }}
-            placeholder="Enter team name"
-            style={styles.input}
-          />
-          <button onClick={handleAddTeam} style={styles.button}>
-            + Add Team
-          </button>
-        </div>
-
-        {teams.length === 0 ? (
-          <div style={styles.emptySmall}>
-            <div style={styles.emptyIcon}>👥</div>
-            <strong>No teams assigned</strong>
-            <p>Add teams, then create matches manually.</p>
-          </div>
-        ) : (
-          <div style={styles.teamGrid}>
-            {teams.map((team, index) => (
-              <div key={`${team}-${index}`} style={styles.teamCard}>
-                <div style={styles.teamInfo}>
-                  <div style={styles.teamNumber}>{index + 1}</div>
-                  <strong>{team}</strong>
-                </div>
-                <div>
-                  <button
-                    onClick={() => handleEditTeam(team)}
-                    style={styles.smallButton}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTeam(team)}
-                    style={styles.deleteButton}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={handleSaveTeams}
-          disabled={savingTeams}
-          style={styles.generateButton}
-        >
-          {savingTeams ? "Saving..." : "Save Teams"}
-        </button>
-
-        <p style={styles.helperText}>
-          Saving teams does not create matches. Use Add Match below to pair
-          teams by round.
-        </p>
-      </section>
-
-      <section style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <span style={styles.sectionLabel}>ADD MATCH</span>
-            <h2 style={styles.sectionTitle}>Create Match</h2>
-          </div>
-        </div>
-
-        <div style={styles.addMatchRow}>
-          <div>
-            <label style={styles.controlLabel}>Select Round</label>
-            <select
-              value={newRound}
-              onChange={(e) => setNewRound(e.target.value)}
-              style={styles.select}
+          <div className="modal-footer">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setEditTeamModalOpen(false)}
             >
-              {ROUNDS.map((round) => (
-                <option key={round} value={round}>
-                  {round}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={styles.controlLabel}>Select Team A</label>
-            <select
-              value={newTeam1}
-              onChange={(e) => setNewTeam1(e.target.value)}
-              style={styles.select}
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveEditedTeam}
             >
-              <option value="">TBD</option>
-              {teams.map((team) => (
-                <option key={`a-${team}`} value={team}>
-                  {team}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={styles.controlLabel}>Select Team B</label>
-            <select
-              value={newTeam2}
-              onChange={(e) => setNewTeam2(e.target.value)}
-              style={styles.select}
-            >
-              <option value="">TBD</option>
-              {teams.map((team) => (
-                <option key={`b-${team}`} value={team}>
-                  {team}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={handleCreateMatch}
-            disabled={savingMatch}
-            style={styles.generateButton}
-          >
-            {savingMatch ? "Saving..." : "Add Match"}
-          </button>
-        </div>
-      </section>
-
-      <section style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <span style={styles.sectionLabel}>RESULTS</span>
-            <h2 style={styles.sectionTitle}>Winners</h2>
+              Save Team Name
+            </button>
           </div>
         </div>
-
-        <div style={styles.winnerGrid}>
-          <div style={styles.winnerCard}>
-            <div style={styles.winnerIcon}>🏆</div>
-            <div>
-              <span style={styles.winnerLabel}>Round 1 Winner 1</span>
-              <strong style={styles.winnerName}>
-                {tournament?.winner1 || "Waiting..."}
-              </strong>
-            </div>
-          </div>
-          <div style={styles.winnerCard}>
-            <div style={styles.winnerIcon}>🏆</div>
-            <div>
-              <span style={styles.winnerLabel}>Round 1 Winner 2</span>
-              <strong style={styles.winnerName}>
-                {tournament?.winner2 || "Waiting..."}
-              </strong>
-            </div>
-          </div>
-          <div style={styles.winnerCard}>
-            <div style={styles.winnerIcon}>🏆</div>
-            <div>
-              <span style={styles.winnerLabel}>Champion</span>
-              <strong style={styles.winnerName}>
-                {tournament?.champion || "Waiting..."}
-              </strong>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <span style={styles.sectionLabel}>BRACKET</span>
-            <h2 style={styles.sectionTitle}>Matches</h2>
-          </div>
-          <span style={styles.matchCount}>{matches.length} Matches</span>
-        </div>
-
-        {matches.length === 0 ? (
-          <div style={styles.emptySmall}>
-            <div style={styles.emptyIcon}>🏏</div>
-            <strong>No matches created</strong>
-            <p>Use Add Match to create Round 1, Round 2, Semi Final or Final.</p>
-          </div>
-        ) : (
-          ROUNDS.map((round) => {
-            const roundMatches = matches
-              .filter((match) => match.round === round)
-              .sort((a, b) => a.matchNumber - b.matchNumber);
-
-            return (
-              <div key={round} style={styles.roundBlock}>
-                <h3 style={styles.roundHeading}>{round}</h3>
-                {roundMatches.length === 0 ? (
-                  <p style={styles.helperText}>
-                    No matches in this round yet.
-                  </p>
-                ) : (
-                  <div style={styles.bracketGrid}>
-                    {roundMatches.map((match) => (
-                      <MatchCard
-                        key={match._id}
-                        match={match}
-                        teams={teams}
-                        onScoreUpdate={handleScoreUpdate}
-                        onWinner={handleWinner}
-                        onSave={handleUpdateMatch}
-                        onDelete={handleDeleteMatch}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
-      </section>
+      </Modal>
     </div>
   );
 }
 
-function MatchCard({
+function StandaloneMatchCard({
   match,
   teams,
   onScoreUpdate,
-  onWinner,
+  onWinnerUpdate,
   onSave,
   onDelete,
 }) {
@@ -568,171 +775,159 @@ function MatchCard({
     match.status,
   ]);
 
-  const handleLiveScore = async () => {
+  async function handleLiveScoreSubmit() {
     try {
       setSaving(true);
-      await onScoreUpdate(
-        match._id,
-        team1Score,
-        team1Wickets,
-        team2Score,
-        team2Wickets,
-        status
-      );
+      await onScoreUpdate(match._id, {
+        team1Score: Number(team1Score) || 0,
+        team1Wickets: Number(team1Wickets) || 0,
+        team2Score: Number(team2Score) || 0,
+        team2Wickets: Number(team2Wickets) || 0,
+        status,
+      });
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const handleSaveMatch = async () => {
-    if (team1 && team2 && team1 === team2) {
-      return;
-    }
-
+  async function handleSaveDetails() {
     try {
       setSaving(true);
       await onSave(match._id, { team1, team2, round });
     } finally {
       setSaving(false);
     }
-  };
+  }
+
+  function addRunsTeam1(runs) {
+    setTeam1Score((prev) => Number(prev || 0) + runs);
+  }
+  function addWicketTeam1() {
+    setTeam1Wickets((prev) => Math.min(10, Number(prev || 0) + 1));
+  }
+  function addRunsTeam2(runs) {
+    setTeam2Score((prev) => Number(prev || 0) + runs);
+  }
+  function addWicketTeam2() {
+    setTeam2Wickets((prev) => Math.min(10, Number(prev || 0) + 1));
+  }
+
+  const isLive = status === "Live";
 
   return (
-    <div style={styles.matchCard}>
-      <div style={styles.matchHeader}>
-        <div>
-          <span style={styles.roundLabel}>{match.round}</span>
-          <strong style={styles.matchTitle}>Match {match.matchNumber}</strong>
-        </div>
-        <span
-          style={{
-            ...styles.statusBadge,
-            ...(status === "Live"
-              ? styles.liveStatus
-              : status === "Completed"
-              ? styles.completedStatus
-              : styles.upcomingStatus),
-          }}
-        >
-          {status === "Live" && "● "}
-          {status}
+    <div className={`match-card ${isLive ? "is-live" : ""}`}>
+      <div className="match-card-top">
+        <span className="match-number-tag">
+          {match.round} • Match #{match.matchNumber}
         </span>
+        <Badge status={status} />
       </div>
 
-      <div style={styles.editRow}>
+      <div className="match-teams-box">
         <div>
-          <label style={styles.controlLabel}>Select Round</label>
-          <select
-            value={round}
-            onChange={(e) => setRound(e.target.value)}
-            style={styles.select}
-          >
-            {ROUNDS.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={styles.controlLabel}>Select Team A</label>
-          <select
-            value={team1}
-            onChange={(e) => setTeam1(e.target.value)}
-            style={styles.select}
-          >
-            <option value="">TBD</option>
-            {teams.map((team) => (
-              <option key={`edit-a-${team}`} value={team}>
-                {team}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={styles.controlLabel}>Select Team B</label>
-          <select
-            value={team2}
-            onChange={(e) => setTeam2(e.target.value)}
-            style={styles.select}
-          >
-            <option value="">TBD</option>
-            {teams.map((team) => (
-              <option key={`edit-b-${team}`} value={team}>
-                {team}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+          <div className="match-team-row">
+            <span className={`match-team-name ${match.winner === team1 ? "is-winner" : ""}`}>
+              {match.winner === team1 && <IconTrophy size={14} style={{ color: "#15803d" }} />}
+              <span>{team1 || "Team A (TBD)"}</span>
+            </span>
 
-      <div style={styles.teams}>
-        <div style={styles.teamScoreBox}>
-          <h3 style={styles.matchTeam}>{team1 || "TBD"}</h3>
-          <div style={styles.scoreRow}>
-            <div>
-              <label style={styles.scoreLabel}>Runs</label>
-              <input
-                type="number"
-                min="0"
-                value={team1Score}
-                onChange={(e) => setTeam1Score(e.target.value)}
-                style={styles.scoreInput}
-              />
+            <div className="match-score-inputs">
+              <div style={{ textAlign: "center" }}>
+                <input
+                  type="number"
+                  min="0"
+                  className="score-num-field"
+                  value={team1Score}
+                  onChange={(e) => setTeam1Score(e.target.value)}
+                  placeholder="0"
+                />
+                <div className="score-sublabel">Runs</div>
+              </div>
+              <span style={{ fontWeight: 800 }}>/</span>
+              <div style={{ textAlign: "center" }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  className="score-num-field"
+                  value={team1Wickets}
+                  onChange={(e) => setTeam1Wickets(e.target.value)}
+                  placeholder="0"
+                />
+                <div className="score-sublabel">Wkts</div>
+              </div>
             </div>
-            <div>
-              <label style={styles.scoreLabel}>Wickets</label>
-              <input
-                type="number"
-                min="0"
-                value={team1Wickets}
-                onChange={(e) => setTeam1Wickets(e.target.value)}
-                style={styles.scoreInput}
-              />
-            </div>
+          </div>
+
+          <div className="score-quick-buttons">
+            <button className="score-inc-btn" onClick={() => addRunsTeam1(1)}>+1</button>
+            <button className="score-inc-btn" onClick={() => addRunsTeam1(4)}>+4</button>
+            <button className="score-inc-btn" onClick={() => addRunsTeam1(6)}>+6</button>
+            <button className="score-inc-btn wicket" onClick={addWicketTeam1}>+W</button>
           </div>
         </div>
 
-        <div style={styles.vs}>VS</div>
+        <div className="match-vs-divider">VS</div>
 
-        <div style={styles.teamScoreBox}>
-          <h3 style={styles.matchTeam}>{team2 || "TBD"}</h3>
-          <div style={styles.scoreRow}>
-            <div>
-              <label style={styles.scoreLabel}>Runs</label>
-              <input
-                type="number"
-                min="0"
-                value={team2Score}
-                onChange={(e) => setTeam2Score(e.target.value)}
-                style={styles.scoreInput}
-              />
+        <div>
+          <div className="match-team-row">
+            <span className={`match-team-name ${match.winner === team2 ? "is-winner" : ""}`}>
+              {match.winner === team2 && <IconTrophy size={14} style={{ color: "#15803d" }} />}
+              <span>{team2 || "Team B (TBD)"}</span>
+            </span>
+
+            <div className="match-score-inputs">
+              <div style={{ textAlign: "center" }}>
+                <input
+                  type="number"
+                  min="0"
+                  className="score-num-field"
+                  value={team2Score}
+                  onChange={(e) => setTeam2Score(e.target.value)}
+                  placeholder="0"
+                />
+                <div className="score-sublabel">Runs</div>
+              </div>
+              <span style={{ fontWeight: 800 }}>/</span>
+              <div style={{ textAlign: "center" }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  className="score-num-field"
+                  value={team2Wickets}
+                  onChange={(e) => setTeam2Wickets(e.target.value)}
+                  placeholder="0"
+                />
+                <div className="score-sublabel">Wkts</div>
+              </div>
             </div>
-            <div>
-              <label style={styles.scoreLabel}>Wickets</label>
-              <input
-                type="number"
-                min="0"
-                value={team2Wickets}
-                onChange={(e) => setTeam2Wickets(e.target.value)}
-                style={styles.scoreInput}
-              />
-            </div>
+          </div>
+
+          <div className="score-quick-buttons">
+            <button className="score-inc-btn" onClick={() => addRunsTeam2(1)}>+1</button>
+            <button className="score-inc-btn" onClick={() => addRunsTeam2(4)}>+4</button>
+            <button className="score-inc-btn" onClick={() => addRunsTeam2(6)}>+6</button>
+            <button className="score-inc-btn wicket" onClick={addWicketTeam2}>+W</button>
           </div>
         </div>
       </div>
 
       {match.winner && (
-        <div style={styles.winnerBanner}>🏆 Winner: {match.winner}</div>
+        <div className="winner-banner-badge">
+          <IconTrophy size={14} />
+          <span>Declared Winner: <strong>{match.winner}</strong></span>
+        </div>
       )}
 
-      <div style={styles.controls}>
-        <div>
-          <label style={styles.controlLabel}>Match Status</label>
+      <div className="match-card-controls">
+        <div className="form-group">
+          <label className="form-label" style={{ fontSize: "0.72rem" }}>Status</label>
           <select
+            className="form-control"
+            style={{ padding: "6px 10px", fontSize: "0.8rem" }}
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            style={styles.select}
           >
             <option value="Upcoming">Upcoming</option>
             <option value="Live">Live</option>
@@ -740,20 +935,13 @@ function MatchCard({
           </select>
         </div>
 
-        <button
-          onClick={handleLiveScore}
-          disabled={saving}
-          style={styles.liveButton}
-        >
-          {saving ? "Updating..." : "🔴 Live Score"}
-        </button>
-
-        <div>
-          <label style={styles.controlLabel}>Select Winner</label>
+        <div className="form-group">
+          <label className="form-label" style={{ fontSize: "0.72rem" }}>Winner</label>
           <select
+            className="form-control"
+            style={{ padding: "6px 10px", fontSize: "0.8rem" }}
             value={match.winner || ""}
-            onChange={(e) => onWinner(match._id, e.target.value)}
-            style={styles.select}
+            onChange={(e) => onWinnerUpdate(match._id, e.target.value)}
           >
             <option value="">Select Winner</option>
             {team1 && <option value={team1}>{team1}</option>}
@@ -762,394 +950,41 @@ function MatchCard({
         </div>
 
         <button
-          onClick={handleSaveMatch}
-          disabled={saving || (team1 && team2 && team1 === team2)}
-          style={styles.smallButton}
+          className="btn btn-coral btn-full btn-sm"
+          onClick={handleLiveScoreSubmit}
+          disabled={saving}
         >
-          Save changes
+          <IconLive size={14} />
+          <span>{saving ? "Pushing Live..." : "Push Live Score"}</span>
         </button>
 
         <button
-          onClick={() => onDelete(match._id)}
-          style={styles.deleteButton}
+          className="btn btn-secondary btn-sm"
+          onClick={handleSaveDetails}
+          disabled={saving}
         >
-          Delete Match
+          Save Details
+        </button>
+
+        <button
+          className="btn btn-outline-danger btn-sm"
+          onClick={() => onDelete(match._id)}
+        >
+          <IconTrash size={14} />
+          <span>Delete</span>
         </button>
       </div>
     </div>
   );
 }
 
-const styles = {
-  container: {
-    minHeight: "100vh",
-    padding: "40px",
-    background: "#f6f8fb",
-    color: "#172033",
-    boxSizing: "border-box",
-  },
-  pageHeader: {
-    maxWidth: "1200px",
-    margin: "0 auto 30px",
-  },
-  backButton: {
-    display: "inline-block",
-    marginBottom: "16px",
-    padding: "8px 0",
-    border: "none",
-    background: "transparent",
-    color: "#237542",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  pageLabel: {
-    fontSize: "12px",
-    fontWeight: "700",
-    letterSpacing: "2px",
-    color: "#667085",
-  },
-  title: {
-    margin: "8px 0",
-    fontSize: "32px",
-    fontWeight: "800",
-  },
-  subtitle: {
-    margin: 0,
-    color: "#667085",
-  },
-  success: {
-    maxWidth: "1200px",
-    margin: "0 auto 16px",
-    padding: "12px 16px",
-    background: "#eaf7ee",
-    color: "#237542",
-    borderRadius: "8px",
-    fontWeight: "700",
-  },
-  error: {
-    maxWidth: "1200px",
-    margin: "0 auto 16px",
-    padding: "12px 16px",
-    background: "#fff0f0",
-    color: "#bd3333",
-    borderRadius: "8px",
-    fontWeight: "700",
-  },
-  section: {
-    maxWidth: "1200px",
-    margin: "0 auto 24px",
-    padding: "26px",
-    background: "#ffffff",
-    border: "1px solid #e4e7ec",
-    borderRadius: "16px",
-    boxSizing: "border-box",
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "22px",
-  },
-  sectionLabel: {
-    fontSize: "11px",
-    fontWeight: "700",
-    letterSpacing: "1.5px",
-    color: "#667085",
-  },
-  sectionTitle: {
-    margin: "5px 0 0",
-    fontSize: "22px",
-  },
-  teamCount: {
-    padding: "7px 12px",
-    borderRadius: "20px",
-    background: "#f2f4f7",
-    fontSize: "13px",
-    fontWeight: "600",
-  },
-  matchCount: {
-    padding: "7px 12px",
-    borderRadius: "20px",
-    background: "#f2f4f7",
-    fontSize: "13px",
-    fontWeight: "600",
-  },
-  addRow: {
-    display: "flex",
-    gap: "10px",
-    marginBottom: "20px",
-  },
-  addMatchRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "12px",
-    alignItems: "flex-end",
-  },
-  editRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "12px",
-    marginBottom: "18px",
-  },
-  input: {
-    flex: 1,
-    maxWidth: "450px",
-    padding: "13px 15px",
-    border: "1px solid #d0d5dd",
-    borderRadius: "9px",
-    fontSize: "14px",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  button: {
-    padding: "12px 20px",
-    border: "none",
-    borderRadius: "9px",
-    background: "#172033",
-    color: "#ffffff",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  teamGrid: {
-    display: "grid",
-    gap: "10px",
-  },
-  teamCard: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "13px 15px",
-    border: "1px solid #eaecf0",
-    borderRadius: "10px",
-    background: "#ffffff",
-  },
-  teamInfo: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
-  teamNumber: {
-    width: "30px",
-    height: "30px",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#f2f4f7",
-    fontSize: "13px",
-    fontWeight: "700",
-  },
-  smallButton: {
-    padding: "7px 12px",
-    marginRight: "7px",
-    border: "1px solid #d0d5dd",
-    borderRadius: "7px",
-    background: "#ffffff",
-    cursor: "pointer",
-  },
-  deleteButton: {
-    padding: "7px 12px",
-    border: "1px solid #f04438",
-    borderRadius: "7px",
-    background: "#ffffff",
-    color: "#d92d20",
-    cursor: "pointer",
-  },
-  generateButton: {
-    marginTop: "20px",
-    padding: "13px 20px",
-    border: "none",
-    borderRadius: "9px",
-    background: "#111827",
-    color: "#ffffff",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  helperText: {
-    margin: "10px 0 0",
-    fontSize: "12px",
-    color: "#667085",
-  },
-  emptySmall: {
-    padding: "30px",
-    textAlign: "center",
-    border: "1px dashed #d0d5dd",
-    borderRadius: "12px",
-    color: "#667085",
-  },
-  emptyIcon: {
-    fontSize: "30px",
-    marginBottom: "8px",
-  },
-  winnerGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    gap: "18px",
-  },
-  winnerCard: {
-    display: "flex",
-    alignItems: "center",
-    gap: "15px",
-    padding: "20px",
-    border: "1px solid #eaecf0",
-    borderRadius: "12px",
-    background: "#fafafa",
-  },
-  winnerIcon: {
-    fontSize: "30px",
-  },
-  winnerLabel: {
-    display: "block",
-    fontSize: "12px",
-    color: "#667085",
-    marginBottom: "5px",
-  },
-  winnerName: {
-    display: "block",
-    fontSize: "18px",
-  },
-  roundBlock: {
-    marginBottom: "28px",
-  },
-  roundHeading: {
-    margin: "0 0 14px",
-    fontSize: "18px",
-  },
-  bracketGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-    gap: "18px",
-  },
-  matchGrid: {
-    display: "grid",
-    gap: "18px",
-  },
-  matchCard: {
-    padding: "22px",
-    border: "1px solid #e4e7ec",
-    borderRadius: "14px",
-    background: "#ffffff",
-  },
-  matchHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "22px",
-  },
-  roundLabel: {
-    display: "block",
-    fontSize: "11px",
-    textTransform: "uppercase",
-    letterSpacing: "1px",
-    color: "#667085",
-    marginBottom: "4px",
-  },
-  matchTitle: {
-    fontSize: "18px",
-  },
-  statusBadge: {
-    padding: "7px 12px",
-    borderRadius: "20px",
-    fontSize: "12px",
-    fontWeight: "700",
-  },
-  liveStatus: {
-    background: "#fee4e2",
-    color: "#d92d20",
-  },
-  completedStatus: {
-    background: "#ecfdf3",
-    color: "#027a48",
-  },
-  upcomingStatus: {
-    background: "#f2f4f7",
-    color: "#475467",
-  },
-  teams: {
-    display: "grid",
-    gridTemplateColumns: "1fr 70px 1fr",
-    gap: "20px",
-    alignItems: "center",
-  },
-  teamScoreBox: {
-    padding: "18px",
-    border: "1px solid #eaecf0",
-    borderRadius: "12px",
-    background: "#fafafa",
-  },
-  matchTeam: {
-    margin: "0 0 16px",
-    fontSize: "18px",
-  },
-  scoreRow: {
-    display: "flex",
-    gap: "12px",
-  },
-  scoreLabel: {
-    display: "block",
-    fontSize: "11px",
-    color: "#667085",
-    marginBottom: "5px",
-  },
-  scoreInput: {
-    width: "80px",
-    padding: "9px",
-    border: "1px solid #d0d5dd",
-    borderRadius: "7px",
-    fontSize: "15px",
-    boxSizing: "border-box",
-  },
-  vs: {
-    textAlign: "center",
-    fontWeight: "800",
-    color: "#667085",
-  },
-  winnerBanner: {
-    marginTop: "12px",
-    padding: "12px",
-    borderRadius: "10px",
-    background: "#ecfdf3",
-    color: "#027a48",
-    fontWeight: "700",
-  },
-  controls: {
-    display: "flex",
-    alignItems: "flex-end",
-    flexWrap: "wrap",
-    gap: "12px",
-    marginTop: "20px",
-    paddingTop: "18px",
-    borderTop: "1px solid #eaecf0",
-  },
-  controlLabel: {
-    display: "block",
-    fontSize: "11px",
-    color: "#667085",
-    marginBottom: "5px",
-  },
-  select: {
-    padding: "9px 12px",
-    border: "1px solid #d0d5dd",
-    borderRadius: "7px",
-    background: "#ffffff",
-    minWidth: "150px",
-  },
-  liveButton: {
-    padding: "10px 17px",
-    border: "none",
-    borderRadius: "8px",
-    background: "#d92d20",
-    color: "#ffffff",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  empty: {
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#f6f8fb",
-    color: "#172033",
-  },
-};
+function formatDate(date) {
+  if (!date) return "-";
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return "-";
+  return value.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
