@@ -1,31 +1,26 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { loginAdmin } from "../services/auth";
 
 function AdminLogin() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
-
     setError("");
     setLoading(true);
 
     try {
       await loginAdmin(email, password);
-      navigate("/");
+      navigate(location.state?.from || "/admin", { replace: true });
     } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message || "Invalid email or password."
-      );
+      setError(err.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
@@ -34,31 +29,21 @@ function AdminLogin() {
   return (
     <div className="admin-login-page">
       <div className="admin-login-card">
-
-        <div className="admin-logo">
-          ⚽
-        </div>
+        <div className="admin-logo">⚽</div>
 
         <div className="admin-login-heading">
           <span>ADMIN PORTAL</span>
-
           <h1>Welcome Back</h1>
-
-          <p>
-            Sign in to manage your tournaments.
-          </p>
+          <p>Sign in to manage your tournaments.</p>
         </div>
 
         <form onSubmit={handleSubmit}>
-
           <label>
             Email
             <input
               type="email"
               value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@example.com"
               required
             />
@@ -69,39 +54,29 @@ function AdminLogin() {
             <input
               type="password"
               value={password}
-              onChange={(e) =>
-                setPassword(e.target.value)
-              }
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required
             />
           </label>
 
-          {error && (
-            <div className="admin-error">
-              {error}
-            </div>
-          )}
+          {error && <div className="admin-error">{error}</div>}
 
           <button
             type="submit"
             className="admin-login-button"
             disabled={loading}
           >
-            {loading
-              ? "Signing in..."
-              : "Sign In"}
+            {loading ? "Signing in..." : "Sign In"}
           </button>
-
         </form>
 
-        <button
+        <a
           className="back-user-button"
-          onClick={() => navigate("/")}
+          href="http://localhost:5173"
         >
           ← Back to User Website
-        </button>
-
+        </a>
       </div>
     </div>
   );

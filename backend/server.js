@@ -13,82 +13,117 @@ dotenv.config();
 const connectDB = require("./config/db");
 
 const app = express();
-
-// Create HTTP server
 const server = http.createServer(app);
 
-// Create Socket.IO server
-const io = new Server(server, {
-    cors: {
-        origin: "http://localhost:5173",
-        methods: ["GET", "POST", "PUT", "DELETE"]
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://192.168.1.2:5173",
+  "http://192.168.1.2:5174",
+];
+
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  return allowedOrigins.includes(origin);
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+      return;
     }
+
+    callback(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  },
 });
 
-app.use(cors());
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
+
 app.use(express.json());
 
-// Make io available to routes
 app.set("io", io);
 
 app.get("/", (req, res) => {
-    res.json({
-        message: "Turf Hub Backend Running"
-    });
+  res.json({
+    success: true,
+    message: "Turf Hub Backend Running",
+  });
 });
 
-// Authentication routes
 const authRoutes = require("./routes/authRoutes");
 app.use("/api/auth", authRoutes);
 
-// Event routes
 const eventRoutes = require("./routes/eventRoutes");
 app.use("/api/events", eventRoutes);
 
-// Dashboard routes
 const dashboardRoutes = require("./routes/dashboardRoutes");
 app.use("/api/dashboard", dashboardRoutes);
 
-// Registration routes
 const registrationRoutes = require("./routes/registrationRoutes");
 app.use("/api/registrations", registrationRoutes);
 
-// Turf routes
 const turfRoutes = require("./routes/turfRoutes");
 app.use("/api/turfs", turfRoutes);
 
-// Booking routes
 const bookingRoutes = require("./routes/bookingRoutes");
 app.use("/api/bookings", bookingRoutes);
 
-// User routes
+const tournamentRoutes = require("./routes/tournamentRoutes");
+app.use("/api/tournaments", tournamentRoutes);
+
 const userRoutes = require("./routes/userRoutes");
 app.use("/api/users", userRoutes);
 
-// Socket connection
 io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+  console.log("✅ Client connected:", socket.id);
 
-    socket.on("disconnect", () => {
-        console.log("Client disconnected:", socket.id);
-    });
+  socket.on("disconnect", () => {
+    console.log("❌ Client disconnected:", socket.id);
+  });
 });
 
 const PORT = process.env.PORT || 5000;
 
-// Start server only after MongoDB connection
 async function startServer() {
-    try {
-        await connectDB();
+  try {
+    await connectDB();
 
-        server.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-            console.log(`Socket.IO running on port ${PORT}`);
-        });
-    } catch (error) {
-        console.error("Failed to start server:", error.message);
-        process.exit(1);
-    }
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log("----------------------------------");
+      console.log("🚀 TURF HUB BACKEND");
+      console.log("----------------------------------");
+      console.log(`✅ Server: http://localhost:${PORT}`);
+      console.log(`✅ LAN: http://192.168.1.2:${PORT}`);
+      console.log(`✅ Socket.IO: http://localhost:${PORT}`);
+      console.log("✅ MongoDB connected");
+      console.log("----------------------------------");
+    });
+  } catch (error) {
+    console.error("❌ Failed to start server:");
+    console.error(error.message);
+
+    process.exit(1);
+  }
 }
 
 startServer();
