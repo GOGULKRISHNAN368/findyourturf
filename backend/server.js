@@ -18,10 +18,13 @@ const server = http.createServer(app);
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
+  "http://localhost:5175",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
   "http://192.168.1.2:5173",
   "http://192.168.1.2:5174",
+  "http://192.168.1.2:5175",
 ];
 
 function isAllowedOrigin(origin) {
@@ -29,7 +32,16 @@ function isAllowedOrigin(origin) {
     return true;
   }
 
-  return allowedOrigins.includes(origin);
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  // Dynamically allow any localhost or LAN dev server port
+  if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)) {
+    return true;
+  }
+
+  return false;
 }
 
 const corsOptions = {
@@ -49,7 +61,13 @@ const corsOptions = {
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS blocked socket origin: ${origin}`));
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -104,6 +122,17 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 5000;
 
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`❌ Port ${PORT} is already in use by another process.`);
+    console.error(`👉 To terminate the process on Windows: netstat -ano | findstr :${PORT} and taskkill /PID <PID> /F`);
+    process.exit(1);
+  } else {
+    console.error("❌ Server error:", err.message);
+    process.exit(1);
+  }
+});
+
 async function startServer() {
   try {
     await connectDB();
@@ -113,7 +142,6 @@ async function startServer() {
       console.log("🚀 TURF HUB BACKEND");
       console.log("----------------------------------");
       console.log(`✅ Server: http://localhost:${PORT}`);
-      console.log(`✅ LAN: http://192.168.1.2:${PORT}`);
       console.log(`✅ Socket.IO: http://localhost:${PORT}`);
       console.log("✅ MongoDB connected");
       console.log("----------------------------------");
