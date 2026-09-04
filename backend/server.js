@@ -15,7 +15,7 @@ const connectDB = require("./config/db");
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = [
+const localOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
@@ -25,6 +25,13 @@ const allowedOrigins = [
   "http://192.168.1.2:5173",
   "http://192.168.1.2:5174",
 ];
+
+const configuredOrigins = (process.env.CLIENT_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [...new Set([...localOrigins, ...configuredOrigins])];
 
 function isAllowedOrigin(origin) {
   if (!origin) {
