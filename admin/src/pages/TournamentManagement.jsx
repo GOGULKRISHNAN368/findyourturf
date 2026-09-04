@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   getTournament,
@@ -27,8 +27,6 @@ import {
   IconLive,
   IconTrophy,
   IconCrown,
-  IconClock,
-  IconMapPin,
   IconUsers,
   IconRefresh,
   IconSparkles,
@@ -739,7 +737,6 @@ export default function TournamentManagement() {
 
 function StandaloneMatchCard({
   match,
-  teams,
   onScoreUpdate,
   onWinnerUpdate,
   onSave,

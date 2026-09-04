@@ -1,10 +1,7 @@
-import React from "react";
-
 export default function Badge({
   status = "Upcoming",
   sport = null,
   className = "",
-  size = "md",
 }) {
   if (sport) {
     const isCricket = (sport || "").toLowerCase() === "cricket";
