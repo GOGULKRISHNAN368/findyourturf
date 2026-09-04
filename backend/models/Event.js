@@ -55,6 +55,43 @@ const eventSchema = new mongoose.Schema(
             min: 0
         },
 
+        entryFee: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+
+        maxTeams: {
+            type: Number,
+            default: 16,
+            min: 2
+        },
+
+        description: {
+            type: String,
+            default: ""
+        },
+
+        rules: {
+            type: String,
+            default: ""
+        },
+
+        keyHighlights: {
+            type: String,
+            default: ""
+        },
+
+        venueName: {
+            type: String,
+            default: ""
+        },
+
+        contactPhone: {
+            type: String,
+            default: ""
+        },
+
         eventImage: {
             type: String,
             default: ""

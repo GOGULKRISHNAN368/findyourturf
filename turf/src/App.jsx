@@ -5,11 +5,42 @@ import {
   Link,
   useNavigate,
   useParams,
+  useLocation
 } from "react-router-dom";
+import { 
+  Bell, 
+  User, 
+  Trophy, 
+  Calendar, 
+  PlayCircle,
+  Home as HomeIcon,
+  Compass,
+  ChevronRight,
+  MapPin,
+  Search,
+  ArrowRight,
+  Heart,
+  Star,
+  Users,
+  ArrowLeft,
+  Share2,
+  CalendarDays,
+  Clock
+} from "lucide-react";
 
 import "./App.css";
-import { getEvent, getEvents, getTournament } from "./services/api";
+import { getEvent, getEvents, getTournament, getTurfs } from "./services/api";
 import { socket } from "./services/socket";
+
+// Pages
+import BookTurf from "./pages/BookTurf";
+import TurfDetails from "./pages/TurfDetails";
+import Checkout from "./pages/Checkout";
+
+// Banners
+import banner1 from "./assets/banners/promo_tournaments_1788516995082.jpg";
+import banner2 from "./assets/banners/promo_book_turf_1788516919639.jpg";
+import banner3 from "./assets/banners/promo_find_players_1788516932200.jpg";
 
 function useEvents() {
   const [events, setEvents] = useState([]);
@@ -73,144 +104,218 @@ function useEvents() {
   };
 }
 
-function Navbar() {
+function MobileHeader() {
   return (
-    <header className="navbar">
-      <Link to="/" className="logo">
-        <span className="logo-mark">⚽</span>
-        <span>
-          <strong>TURF HUB</strong>
-          <small>PLAY • COMPETE • WIN</small>
-        </span>
-      </Link>
-
-      <nav>
-        <Link to="/">Home</Link>
-        <Link to="/events">Explore Events</Link>
-        <a href="/#how-it-works">How It Works</a>
-      </nav>
+    <header className="app-header">
+      <div className="header-logo-container">
+        <div className="header-f-icon">F</div>
+        <div className="header-text-group">
+          <div className="header-brand">FindYour<span>Turf</span></div>
+          <div className="header-tagline">Play • Book • Compete • Connect</div>
+        </div>
+      </div>
+      <div className="header-right">
+        <button className="notification-btn">
+          <Bell size={22} color="#0E1224" />
+          <div className="notification-badge" />
+        </button>
+        <div className="profile-avatar-circle">
+          <User size={24} />
+        </div>
+      </div>
     </header>
+  );
+}
+
+function LocationSearch() {
+  return (
+    <div className="location-search-row">
+      <button className="loc-selector">
+        <MapPin size={18} color="#0E1224" />
+        <span className="loc-selector-text">Chennai</span>
+        <ChevronRight size={16} color="#0E1224" style={{ transform: 'rotate(90deg)' }} />
+      </button>
+      <div className="search-input-box">
+        <Search size={20} color="#9297A8" />
+        <input type="text" placeholder="Search turfs, tournaments, players..." />
+      </div>
+    </div>
+  );
+}
+
+function QuickActions() {
+  const navigate = useNavigate();
+  
+  return (
+    <div className="qa-container">
+      <button className="qa-card purple-bg" onClick={() => navigate("/events")}>
+        <Trophy size={28} className="qa-icon-top" />
+        <Trophy size={90} className="qa-bg-icon" />
+        <div className="qa-title">Explore<br/>Events</div>
+        <div className="qa-arrow-btn"><ArrowRight size={16} /></div>
+      </button>
+      <button className="qa-card teal-bg" onClick={() => navigate("/turfs")}>
+        <Calendar size={28} className="qa-icon-top" />
+        <Calendar size={90} className="qa-bg-icon" />
+        <div className="qa-title">Book<br/>Turf</div>
+        <div className="qa-arrow-btn"><ArrowRight size={16} /></div>
+      </button>
+      <button className="qa-card coral-bg" onClick={() => {}}>
+        <PlayCircle size={28} className="qa-icon-top" />
+        <PlayCircle size={90} className="qa-bg-icon" />
+        <div className="qa-title">See Live<br/>Matches</div>
+        <div className="qa-arrow-btn"><ArrowRight size={16} /></div>
+      </button>
+    </div>
+  );
+}
+
+function PromotionalSlider() {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slides = [
+    {
+      image: banner1,
+      eyebrow: "TOURNAMENTS • CRICKET • FOOTBALL",
+      headline: <>See all the<br/><span>tournaments</span></>,
+      description: "Discover upcoming cricket and football tournaments near you."
+    },
+    {
+      image: banner2,
+      eyebrow: "BOOK TURF • ONLINE • EASY SLOTS",
+      headline: <>Book your<br/><span>turf online</span></>,
+      description: "Choose your time slot and reserve your game instantly."
+    },
+    {
+      image: banner3,
+      eyebrow: "PLAY TOGETHER • CONNECT • TEAM UP",
+      headline: <>Find the<br/><span>partner to play</span></>,
+      description: "Connect with nearby players and build your team fast."
+    }
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [slides.length]);
+
+  return (
+    <div className="promo-banner">
+      <img src={slides[currentSlide].image} alt="Promotion" className="promo-bg-img" />
+      <div className="promo-overlay-new">
+        <div className="promo-eyebrow-new">{slides[currentSlide].eyebrow}</div>
+        <div className="promo-headline-new">{slides[currentSlide].headline}</div>
+        <div className="promo-desc-new">{slides[currentSlide].description}</div>
+      </div>
+      <div className="promo-dots">
+        {slides.map((_, index) => (
+          <div key={index} className={`promo-dot-new ${index === currentSlide ? "active" : ""}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BottomNavigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  return (
+    <nav className="bottom-nav-fixed">
+      <button 
+        className={`nav-item-new ${location.pathname === '/' ? 'active' : ''}`}
+        onClick={() => navigate("/")}
+      >
+        <HomeIcon size={24} />
+        <span className="nav-label-new">Home</span>
+        {location.pathname === '/' && <div className="nav-indicator" />}
+      </button>
+      <button 
+        className={`nav-item-new ${location.pathname === '/events' ? 'active' : ''}`}
+        onClick={() => navigate("/events")}
+      >
+        <Trophy size={24} />
+        <span className="nav-label-new">Events</span>
+        {location.pathname === '/events' && <div className="nav-indicator" />}
+      </button>
+      <button 
+        className={`nav-item-new ${location.pathname === '/bookings' ? 'active' : ''}`}
+        onClick={() => {}}
+      >
+        <Calendar size={24} />
+        <span className="nav-label-new">Bookings</span>
+        {location.pathname === '/bookings' && <div className="nav-indicator" />}
+      </button>
+      <button 
+        className={`nav-item-new ${location.pathname === '/live' ? 'active' : ''}`}
+        onClick={() => {}}
+      >
+        <PlayCircle size={24} />
+        <span className="nav-label-new">Live</span>
+        {location.pathname === '/live' && <div className="nav-indicator" />}
+      </button>
+      <button 
+        className={`nav-item-new ${location.pathname === '/profile' ? 'active' : ''}`}
+        onClick={() => {}}
+      >
+        <User size={24} />
+        <span className="nav-label-new">Profile</span>
+        {location.pathname === '/profile' && <div className="nav-indicator" />}
+      </button>
+    </nav>
   );
 }
 
 function Home() {
   return (
-    <div className="user-page">
-      <Navbar />
+    <div className="mobile-app-container">
+      <MobileHeader />
+      <LocationSearch />
 
-      <section className="hero">
-        <div className="hero-content">
-          <span className="hero-label">
-            CRICKET • FOOTBALL • TOURNAMENTS
-          </span>
+      <div className="home-scroll-area" style={{ paddingBottom: 100 }}>
+        <QuickActions />
+        
+        <PromotionalSlider />
 
-          <h1>
-            Find Your Game.
-            <br />
-            <span>Play Your Best.</span>
-          </h1>
-
-          <p>
-            Discover and join exciting cricket & football tournaments near you.
-          </p>
-
-          <div className="hero-buttons">
-            <Link to="/events" className="btn btn-primary">
-              Explore Events
-            </Link>
-            <a href="#how-it-works" className="btn btn-secondary">
-              How It Works
-            </a>
+        <section className="section-container">
+          <div className="section-header-row">
+            <h2>Upcoming Tournaments</h2>
+            <span className="section-view-all" style={{cursor: 'pointer'}}>
+              View All <ChevronRight size={16} />
+            </span>
           </div>
-        </div>
-      </section>
+          <EventGrid limit={4} />
+        </section>
 
-      <section className="events-section">
-        <div className="section-title">
-          <div>
-            <span>UPCOMING TOURNAMENTS</span>
-            <h2>Upcoming Events</h2>
-            <p>Find your game. Build your team. Join the competition.</p>
+        <section className="section-container">
+          <div className="section-header-row">
+            <h2>Nearby Turfs</h2>
+            <span className="section-view-all" style={{cursor: 'pointer'}}>
+              View All <ChevronRight size={16} />
+            </span>
           </div>
-          <Link to="/events" className="view-all">
-            View all events →
-          </Link>
-        </div>
+          <NearbyTurfs />
+        </section>
+      </div>
 
-        <EventGrid limit={3} />
-      </section>
-
-      <HowItWorks />
-
-      <footer className="footer">
-        <strong>TURF HUB</strong>
-        <span>Sports tournaments made simple.</span>
-      </footer>
+      <BottomNavigation />
     </div>
-  );
-}
-
-function HowItWorks() {
-  return (
-    <section className="how-section" id="how-it-works">
-      <div className="section-title centered">
-        <span>HOW IT WORKS</span>
-        <h2>Join in 3 Simple Steps</h2>
-      </div>
-
-      <div className="steps">
-        <div className="step">
-          <div className="step-icon">1</div>
-          <h3>Explore Events</h3>
-          <p>Browse upcoming cricket and football tournaments.</p>
-        </div>
-        <div className="step">
-          <div className="step-icon">2</div>
-          <h3>Choose Your Game</h3>
-          <p>Check the date, location, team size and prizes.</p>
-        </div>
-        <div className="step">
-          <div className="step-icon">3</div>
-          <h3>Register</h3>
-          <p>Open the registration form and register your team.</p>
-        </div>
-      </div>
-    </section>
   );
 }
 
 function EventGrid({ limit }) {
   const { events, loading, error, loadEvents } = useEvents();
 
-  if (loading) {
-    return <div className="status-box">Loading events...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="status-box">
-        <p>{error}</p>
-        <button className="btn btn-primary" onClick={loadEvents}>
-          Try Again
-        </button>
-      </div>
-    );
-  }
+  if (loading) return <div className="status-box">Loading events...</div>;
+  if (error) return <div className="status-box"><p>{error}</p><button className="btn-primary" onClick={loadEvents}>Try Again</button></div>;
 
   const visibleEvents = limit ? events.slice(0, limit) : events;
 
-  if (visibleEvents.length === 0) {
-    return (
-      <div className="status-box">
-        <div className="status-icon">🏟️</div>
-        <h3>No events available yet</h3>
-        <p>New tournaments will appear here soon.</p>
-      </div>
-    );
-  }
+  if (visibleEvents.length === 0) return <div className="status-box"><h3>No events</h3></div>;
 
   return (
-    <div className="event-grid">
+    <div className="horiz-scroll-list">
       {visibleEvents.map((event) => (
         <EventCard key={event._id} event={event} />
       ))}
@@ -219,79 +324,90 @@ function EventGrid({ limit }) {
 }
 
 function EventCard({ event }) {
+  const navigate = useNavigate();
+
+  const isNightRiders = event.eventName === 'night riders';
+  const displayTitle = isNightRiders ? 'One Day Cricket Turf Tournament' : (event.eventName || 'One Day Cricket Turf Tournament');
+  const displayLocation = isNightRiders ? 'Coimbatore' : (event.location || 'Coimbatore');
+  const displayDate = isNightRiders ? '12 Sept 2026' : (event.eventDate ? formatDate(event.eventDate) : '12 Sept 2026');
+  const displayImage = isNightRiders ? '/cricket-turf.jpg' : (event.eventImage || (event.sport === 'Football' ? "https://images.unsplash.com/photo-1518605368461-1ee18eb1e79f?w=600&q=80" : "/cricket-turf.jpg"));
+
   return (
-    <article className="event-card">
-      <div className="event-image">
-        {event.eventImage ? (
-          <img src={event.eventImage} alt={event.eventName} />
-        ) : (
-          <div className="image-placeholder">
-            {event.sport === "Football" ? "⚽" : "🏏"}
-          </div>
-        )}
-        <span className="sport-badge">{event.sport}</span>
+    <article className="tourney-h-card" onClick={() => navigate(`/events/${event._id}`)}>
+      <div className="th-img-box">
+        <img 
+          src={displayImage} 
+          alt={displayTitle} 
+        />
       </div>
-
-      <div className="event-body">
-        <h3>{event.eventName}</h3>
-
-        <div className="event-info">
-          <p>
-            <span>👥</span>
-            {event.teamSize}
-          </p>
-          <p>
-            <span>📍</span>
-            {event.location}
-          </p>
-          <p>
-            <span>📅</span>
-            {formatDate(event.eventDate)}
-          </p>
-          <p>
-            <span>⏰</span>
-            Registration ends {formatDate(event.registrationDeadline)}
-          </p>
+      <div className="th-content">
+        <div className="th-meta-row">
+          <Calendar size={12} color="#7047FF" /> {displayDate}
         </div>
-
-        <div className="card-prizes">
-          <div>
-            <small>1st Prize</small>
-            <strong>₹{event.firstPrize || 0}</strong>
-          </div>
-          <div>
-            <small>2nd Prize</small>
-            <strong>₹{event.secondPrize || 0}</strong>
-          </div>
-          <div>
-            <small>3rd Prize</small>
-            <strong>₹{event.thirdPrize || 0}</strong>
-          </div>
+        <h3 className="th-title">{displayTitle}</h3>
+        <div className="th-meta-row" style={{marginBottom: 8}}>
+          <MapPin size={12} /> {displayLocation}
         </div>
-
-        <Link to={`/events/${event._id}`} className="details-button">
-          View Details
-          <span>→</span>
-        </Link>
+        <div className="th-meta-row">
+          <Users size={12} /> {event.maxTeams || 16} Teams
+        </div>
+        <div className="th-arrow-btn"><ArrowRight size={14} /></div>
       </div>
     </article>
   );
 }
 
+function NearbyTurfs() {
+  const [turfs, setTurfs] = useState([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    getTurfs().then(data => setTurfs(data || [])).catch(err => console.error(err));
+  }, []);
+
+  if (turfs.length === 0) return null;
+
+  return (
+    <div className="horiz-scroll-list">
+      {turfs.map(turf => (
+        <article key={turf._id} className="turf-h-card" onClick={() => navigate(`/turfs/${turf._id}`)}>
+          <div className="turf-h-img-box">
+            <img src="https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=400&auto=format&fit=crop" alt={turf.name} />
+            <div className="turf-h-heart"><Heart size={16} /></div>
+            <div className="turf-h-rating"><Star size={12} fill="#fff" /> 4.8 (120)</div>
+          </div>
+          <div className="turf-h-content">
+            <h3 className="turf-h-title">{turf.name}</h3>
+            <div className="turf-h-loc"><MapPin size={12} /> {turf.location}</div>
+            <div className="turf-h-bottom">
+              <div className="turf-h-sport">
+                {turf.sportType === 'Football' ? '⚽' : '🏏'} {turf.sportType} • 5v5
+              </div>
+              <div className="turf-h-price">
+                <span>From</span>
+                <strong>₹{turf.pricePerHour}/hr</strong>
+              </div>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function EventsPage() {
   return (
-    <div className="user-page">
-      <Navbar />
+    <div className="mobile-app-container">
+      <MobileHeader />
 
-      <section className="simple-header">
-        <span>TOURNAMENTS</span>
-        <h1>Explore Events</h1>
-        <p>Find a tournament and get your team ready.</p>
-      </section>
-
-      <main className="events-page">
+      <div className="home-scroll-area">
+        <div className="section-header" style={{marginTop: 16}}>
+          <h2>All Tournaments</h2>
+        </div>
         <EventGrid />
-      </main>
+      </div>
+
+      <BottomNavigation />
     </div>
   );
 }
@@ -324,6 +440,7 @@ function TournamentDetails() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState('Overview');
 
   useEffect(() => {
     let mounted = true;
@@ -371,10 +488,10 @@ function TournamentDetails() {
       }
     };
 
-    const handleEventDeleted = ({ id: deletedId }) => {
+    const handleEventDeleted = (deletedId) => {
       if (String(deletedId) === String(id)) {
+        setError("This tournament has been deleted.");
         setEvent(null);
-        setError("This tournament is no longer available.");
       }
     };
 
@@ -407,8 +524,8 @@ function TournamentDetails() {
 
   if (loading) {
     return (
-      <div className="user-page">
-        <Navbar />
+      <div className="mobile-app-container">
+        <MobileHeader />
         <div className="status-box">Loading tournament...</div>
       </div>
     );
@@ -416,12 +533,12 @@ function TournamentDetails() {
 
   if (!event) {
     return (
-      <div className="user-page">
-        <Navbar />
-        <div className="not-found">
-          <h1>Tournament Not Found</h1>
+      <div className="mobile-app-container">
+        <MobileHeader />
+        <div className="status-box">
+          <h3>Tournament Not Found</h3>
           <p>{error || "This tournament is no longer available."}</p>
-          <button className="btn btn-primary" onClick={() => navigate("/events")}>
+          <button className="btn-primary" onClick={() => navigate("/events")}>
             Back to Events
           </button>
         </div>
@@ -429,203 +546,169 @@ function TournamentDetails() {
     );
   }
 
-  const teams = tournament?.teams || [];
-  const matches = tournament?.matches || [];
-  const hasWinners = Boolean(tournament?.winner1 || tournament?.winner2);
+  const isClosed = event.registrationDeadline ? new Date(event.registrationDeadline) < new Date() : false;
+
+  const fallbackImage = event.sport === 'Football' ? "https://images.unsplash.com/photo-1518605368461-1ee18eb1e79f?w=600&q=80" : "/cricket-turf.jpg";
+  const displayImage = event.eventImage || fallbackImage;
 
   return (
-    <div className="user-page">
-      <Navbar />
+    <div className="mobile-app-container td-page-bg">
+      <div className="td-hero">
+        <img 
+          src={displayImage} 
+          alt={event.eventName || 'Tournament'} 
+          className="td-hero-img" 
+        />
+        <div className="td-hero-overlay"></div>
+        <div className="td-top-controls">
+          <button className="td-icon-btn" onClick={() => navigate(-1)}><ArrowLeft size={22} color="#fff" /></button>
+          <div style={{display:'flex', gap:10}}>
+            <button className="td-icon-btn"><Share2 size={22} color="#fff" /></button>
+            <button className="td-icon-btn"><Heart size={22} color="#fff" /></button>
+          </div>
+        </div>
+        <div className="td-hero-content">
+          <div className="td-sport-badge">{event.sport}</div>
+          <h1 className="td-title">{event.eventName || 'Tournament'}</h1>
+          <div className="td-quick-info">
+            <div className="td-qi-item"><MapPin size={14} /> {event.location || 'Location TBA'}</div>
+            <div className="td-qi-sep">|</div>
+            <div className="td-qi-item"><CalendarDays size={14} /> {event.eventDate ? formatDate(event.eventDate) : 'Date TBA'}</div>
+            <div className="td-qi-sep">|</div>
+            <div className="td-qi-item"><Users size={14} /> {event.maxTeams || 16} Teams</div>
+          </div>
+        </div>
+      </div>
 
-      <main className="details-page">
-        <button className="back-link" onClick={() => navigate("/events")}>
-          ← Back to Events
-        </button>
-
-        <div className="details-image">
-          {event.eventImage ? (
-            <img src={event.eventImage} alt={event.eventName} />
-          ) : (
-            <div className="image-placeholder large">
-              {event.sport === "Football" ? "⚽" : "🏏"}
+      <div className="td-sheet">
+        <div className="td-tabs">
+          {['Overview', 'Rules', 'Prizes', 'Venue', 'Contact'].map(tab => (
+            <div 
+              key={tab} 
+              className={`td-tab ${activeTab === tab ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+              {activeTab === tab && <div className="td-tab-indicator" />}
             </div>
-          )}
+          ))}
         </div>
 
-        <div className="details-content">
-          <span className="details-sport">{event.sport}</span>
-          <h1>{event.eventName}</h1>
-
-          <div className="details-info-grid">
-            <div>
-              <small>Team Size</small>
-              <strong>👥 {event.teamSize}</strong>
-            </div>
-            <div>
-              <small>Event Date</small>
-              <strong>📅 {formatDate(event.eventDate)}</strong>
-            </div>
-            <div>
-              <small>Registration Deadline</small>
-              <strong>⏰ {formatDate(event.registrationDeadline)}</strong>
-            </div>
-            <div>
-              <small>Location</small>
-              <strong>📍 {event.location}</strong>
-            </div>
-          </div>
-
-          <div className="prize-section">
-            <h2>Prize Details</h2>
-            <div className="large-prizes">
-              <div>
-                <span>🥇</span>
-                <small>1st Prize</small>
-                <strong>₹{event.firstPrize || 0}</strong>
-              </div>
-              <div>
-                <span>🥈</span>
-                <small>2nd Prize</small>
-                <strong>₹{event.secondPrize || 0}</strong>
-              </div>
-              <div>
-                <span>🥉</span>
-                <small>3rd Prize</small>
-                <strong>₹{event.thirdPrize || 0}</strong>
-              </div>
-            </div>
-          </div>
-
-          <section className="tournament-section">
-            <span className="section-kicker">TOURNAMENT</span>
-            <h2>Participating Teams</h2>
-            {teams.length === 0 ? (
-              <div className="status-box compact">
-                <h3>Teams not announced yet</h3>
-                <p>Team lists will appear here once the admin assigns them.</p>
-              </div>
-            ) : (
-              <div className="public-teams">
-                {teams.map((team, index) => (
-                  <div key={`${team}-${index}`} className="public-team">
-                    {index + 1}. {team}
+        <div className="td-content">
+          {activeTab === 'Overview' && (
+            <>
+              <h2 className="td-section-title">Tournament Information</h2>
+              <div className="td-info-grid">
+                <div className="td-info-card">
+                  <div className="td-ic-icon"><Users size={22} /></div>
+                  <div className="td-ic-text">
+                    <small>Team Size</small>
+                    <strong>{event.teamSize || '8 Players + 1 Impact'}</strong>
                   </div>
-                ))}
+                </div>
+                <div className="td-info-card">
+                  <div className="td-ic-icon"><CalendarDays size={22} /></div>
+                  <div className="td-ic-text">
+                    <small>Event Date</small>
+                    <strong>{event.eventDate ? formatDate(event.eventDate) : 'TBA'}</strong>
+                  </div>
+                </div>
+                <div className="td-info-card">
+                  <div className="td-ic-icon"><Clock size={22} /></div>
+                  <div className="td-ic-text">
+                    <small>Registration Deadline</small>
+                    <strong>{event.registrationDeadline ? formatDate(event.registrationDeadline) : 'TBA'}</strong>
+                  </div>
+                </div>
+                <div className="td-info-card">
+                  <div className="td-ic-icon"><MapPin size={22} /></div>
+                  <div className="td-ic-text">
+                    <small>Location</small>
+                    <strong>{event.location || 'TBA'}</strong>
+                  </div>
+                </div>
               </div>
-            )}
-          </section>
 
-          {hasWinners && (
-            <section className="tournament-section">
-              <span className="section-kicker">QUALIFIED TEAMS</span>
-              <h2>Round 1 Winners</h2>
-              <div className="public-winners">
-                <div>
-                  <small>Winner 1</small>
-                  <h3>🏆 {tournament.winner1 || "Waiting..."}</h3>
+              <div className="td-divider" />
+              
+              <h2 className="td-section-title">About Tournament</h2>
+              <div style={{fontSize: 14, color: '#5E6578', lineHeight: 1.55, marginBottom: 24, whiteSpace: 'pre-wrap'}}>
+                {event.description || 'Information about this tournament will be updated soon.'}
+              </div>
+
+              <h2 className="td-section-title">Prize Details</h2>
+              <div className="td-prize-cards">
+                <div className="td-prize-card gold">
+                  <div className="td-prize-label"><Trophy size={16} /> 1st Prize</div>
+                  <div className="td-prize-amt">₹{event.firstPrize || '0'}</div>
                 </div>
-                <div>
-                  <small>Winner 2</small>
-                  <h3>🏆 {tournament.winner2 || "Waiting..."}</h3>
+                <div className="td-prize-card silver">
+                  <div className="td-prize-label"><Trophy size={16} color="#8A90A2" /> 2nd Prize</div>
+                  <div className="td-prize-amt">₹{event.secondPrize || '0'}</div>
                 </div>
               </div>
-            </section>
+
+              <div className="td-divider" />
+
+              <h2 className="td-section-title">Key Highlights</h2>
+              <div style={{fontSize: 14, color: '#5E6578', lineHeight: 1.55, whiteSpace: 'pre-wrap'}}>
+                {event.keyHighlights || 'No key highlights available.'}
+              </div>
+            </>
           )}
 
-          <section className="tournament-section">
-            <span className="section-kicker">LIVE TOURNAMENT</span>
-            <h2>Bracket & Matches</h2>
-            {matches.length === 0 ? (
-              <div className="status-box compact">
-                <h3>Tournament has not started yet</h3>
-                <p>
-                  Matches, live scores and winners will appear here after the
-                  admin creates them.
-                </p>
+          {activeTab === 'Rules' && (
+            <div style={{paddingTop: 10}}>
+              <h2 className="td-section-title">Tournament Rules</h2>
+              <div style={{fontSize: 14, color: '#5E6578', lineHeight: 1.8, whiteSpace: 'pre-wrap'}}>
+                {event.rules || 'No rules specified.'}
               </div>
-            ) : (
-              ["Round 1", "Round 2", "Semi Final", "Final"].map((round) => {
-                const roundMatches = matches
-                  .filter((match) => match.round === round)
-                  .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
+            </div>
+          )}
 
-                if (roundMatches.length === 0) {
-                  return null;
-                }
-
-                return (
-                  <div key={round} className="public-round-block">
-                    <h3>{round}</h3>
-                    <div className="public-matches">
-                      {roundMatches.map((match) => (
-                        <div
-                          key={match._id || `${round}-${match.matchNumber}`}
-                          className="public-match"
-                        >
-                          <div className="public-match-header">
-                            <div>
-                              <strong>{match.round}</strong>
-                              <div>Match {match.matchNumber}</div>
-                            </div>
-                            <span
-                              className={`match-status ${String(
-                                match.status || ""
-                              ).toLowerCase()}`}
-                            >
-                              {match.status}
-                            </span>
-                          </div>
-
-                          <div className="public-score-row">
-                            <strong>{match.team1 || "TBD"}</strong>
-                            <strong>
-                              {match.team1Score || 0}/{match.team1Wickets || 0}
-                            </strong>
-                          </div>
-                          <div className="public-score-row">
-                            <strong>{match.team2 || "TBD"}</strong>
-                            <strong>
-                              {match.team2Score || 0}/{match.team2Wickets || 0}
-                            </strong>
-                          </div>
-
-                          {match.winner ? (
-                            <div className="public-winner-banner">
-                              🏆 Winner: {match.winner}
-                            </div>
-                          ) : (
-                            <div className="public-winner-banner">
-                              Winner: Waiting...
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </section>
-
-          <div className="register-section">
-            <div>
-              <h2>Ready to play?</h2>
-              <p>
-                Complete the registration form to participate in this tournament.
+          {activeTab === 'Prizes' && (
+            <div style={{paddingTop: 10}}>
+              <h2 className="td-section-title">Total Prize Pool: ₹{(event.firstPrize || 0) + (event.secondPrize || 0) + (event.thirdPrize || 0)}</h2>
+              <p style={{fontSize: 14, color: '#5E6578', marginBottom: 16}}>
+                🥇 1st Prize — ₹{event.firstPrize || 0}<br/>
+                🥈 2nd Prize — ₹{event.secondPrize || 0}<br/>
+                🥉 3rd Prize — ₹{event.thirdPrize || 0}
               </p>
             </div>
+          )}
 
-            <a
-              href={GOOGLE_FORM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="register-button"
-            >
-              Register Now →
-            </a>
-          </div>
+          {activeTab === 'Venue' && (
+            <div style={{paddingTop: 10}}>
+              <h2 className="td-section-title">{event.venueName || 'Venue TBA'}</h2>
+              <p style={{fontSize: 14, color: '#5E6578'}}>
+                {event.location || 'Location TBA'}
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'Contact' && (
+            <div style={{paddingTop: 10}}>
+              <h2 className="td-section-title">Organizer Contact</h2>
+              <p style={{fontSize: 14, color: '#5E6578'}}>
+                For registration and more details, contact:<br/>
+                <strong>{event.contactPhone || 'No contact provided'}</strong>
+              </p>
+            </div>
+          )}
+
+          <div style={{height: 100}} />
         </div>
-      </main>
+      </div>
+
+      <div className="td-sticky-footer">
+        {isClosed ? (
+          <div className="td-btn-disabled">Registration Closed</div>
+        ) : (
+          <a href={GOOGLE_FORM_URL} target="_blank" rel="noopener noreferrer" className="td-btn-register">
+            Register Now <ArrowRight size={18} style={{marginLeft: 8}} />
+          </a>
+        )}
+      </div>
     </div>
   );
 }
@@ -654,6 +737,9 @@ function App() {
       <Route path="/" element={<Home />} />
       <Route path="/events" element={<EventsPage />} />
       <Route path="/events/:id" element={<TournamentDetails />} />
+      <Route path="/turfs" element={<BookTurf />} />
+      <Route path="/turfs/:id" element={<TurfDetails />} />
+      <Route path="/turfs/:id/checkout" element={<Checkout />} />
     </Routes>
   );
 }

@@ -70,3 +70,26 @@ export async function getTournament(eventId) {
     throw err;
   }
 }
+
+export async function getTurfs() {
+  const data = await request("/api/turfs");
+  return data;
+}
+
+export async function getTurf(turfId) {
+  const data = await request(`/api/turfs/${turfId}`);
+  return data;
+}
+
+export async function checkAvailability(turfId, date, startTime, endTime) {
+  const data = await request(`/api/bookings/availability?turf=${turfId}&bookingDate=${date}&startTime=${startTime}&endTime=${endTime}`);
+  return data;
+}
+
+export async function createBooking(bookingData) {
+  const data = await request("/api/bookings", {
+    method: "POST",
+    body: JSON.stringify(bookingData)
+  });
+  return data;
+}

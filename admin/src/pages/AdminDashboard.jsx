@@ -64,6 +64,13 @@ const emptyEventForm = {
   firstPrize: "",
   secondPrize: "",
   thirdPrize: "",
+  entryFee: "",
+  maxTeams: "",
+  description: "",
+  rules: "",
+  keyHighlights: "",
+  venueName: "",
+  contactPhone: "",
   eventImage: "",
   registrationLink: "",
 };
@@ -242,6 +249,13 @@ export default function AdminDashboard() {
       firstPrize: event.firstPrize || "",
       secondPrize: event.secondPrize || "",
       thirdPrize: event.thirdPrize || "",
+      entryFee: event.entryFee || "",
+      maxTeams: event.maxTeams || "",
+      description: event.description || "",
+      rules: event.rules || "",
+      keyHighlights: event.keyHighlights || "",
+      venueName: event.venueName || "",
+      contactPhone: event.contactPhone || "",
       eventImage: event.eventImage || "",
       registrationLink: event.registrationLink || "",
     });
@@ -269,6 +283,8 @@ export default function AdminDashboard() {
         firstPrize: Number(eventForm.firstPrize || 0),
         secondPrize: Number(eventForm.secondPrize || 0),
         thirdPrize: Number(eventForm.thirdPrize || 0),
+        entryFee: Number(eventForm.entryFee || 0),
+        maxTeams: Number(eventForm.maxTeams || 16),
       };
 
       if (editingEventId) {
@@ -860,6 +876,7 @@ export default function AdminDashboard() {
         </>
       )}
 
+<<<<<<< HEAD
       {/* -------------------------------------------------------------------
           TAB 2: EVENTS MANAGEMENT
           ------------------------------------------------------------------- */}
@@ -867,6 +884,232 @@ export default function AdminDashboard() {
         <div>
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+=======
+          <form className="admin-form" onSubmit={handleSubmit}>
+            <div className="form-field full">
+              <label>Event Name *</label>
+              <input
+                name="eventName"
+                value={form.eventName}
+                onChange={handleChange}
+                placeholder="Example: Night Cricket League"
+                required
+              />
+            </div>
+
+            <div className="form-row three">
+              <div className="form-field">
+                <label>Sport *</label>
+                <select name="sport" value={form.sport} onChange={handleChange}>
+                  <option value="Cricket">Cricket</option>
+                  <option value="Football">Football</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label>Team Format *</label>
+                <input
+                  name="teamSize"
+                  value={form.teamSize}
+                  onChange={handleChange}
+                  placeholder="e.g. 8 + 1 Impact"
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Max Teams *</label>
+                <input
+                  type="number"
+                  min="2"
+                  name="maxTeams"
+                  value={form.maxTeams}
+                  onChange={handleChange}
+                  placeholder="16"
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-field">
+                <label>Event Date *</label>
+                <input
+                  type="date"
+                  name="eventDate"
+                  value={form.eventDate}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Registration Deadline *</label>
+                <input
+                  type="date"
+                  name="registrationDeadline"
+                  value={form.registrationDeadline}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-field full">
+              <label>Location (City/Region) *</label>
+              <input
+                name="location"
+                value={form.location}
+                onChange={handleChange}
+                placeholder="Example: Coimbatore"
+                required
+              />
+            </div>
+
+            <div className="form-row">
+              <div className="form-field">
+                <label>Venue Name</label>
+                <input
+                  name="venueName"
+                  value={form.venueName}
+                  onChange={handleChange}
+                  placeholder="Example: Turf Hub Arena"
+                />
+              </div>
+              <div className="form-field">
+                <label>Contact Phone</label>
+                <input
+                  name="contactPhone"
+                  value={form.contactPhone}
+                  onChange={handleChange}
+                  placeholder="Example: +91 9876543210"
+                />
+              </div>
+            </div>
+
+            <div className="prize-heading">Financial Details</div>
+            
+            <div className="form-field full" style={{marginBottom: 15}}>
+              <label>Entry Fee (₹)</label>
+              <input
+                type="number"
+                min="0"
+                name="entryFee"
+                value={form.entryFee}
+                onChange={handleChange}
+                placeholder="3000"
+              />
+            </div>
+
+            <div className="form-row three">
+              <div className="form-field">
+                <label>1st Prize</label>
+                <input
+                  type="number"
+                  min="0"
+                  name="firstPrize"
+                  value={form.firstPrize}
+                  onChange={handleChange}
+                  placeholder="10000"
+                />
+              </div>
+              <div className="form-field">
+                <label>2nd Prize</label>
+                <input
+                  type="number"
+                  min="0"
+                  name="secondPrize"
+                  value={form.secondPrize}
+                  onChange={handleChange}
+                  placeholder="5000"
+                />
+              </div>
+              <div className="form-field">
+                <label>3rd Prize</label>
+                <input
+                  type="number"
+                  min="0"
+                  name="thirdPrize"
+                  value={form.thirdPrize}
+                  onChange={handleChange}
+                  placeholder="2500"
+                />
+              </div>
+            </div>
+
+            <div className="form-field full">
+              <label>Event Image URL</label>
+              <input
+                type="url"
+                name="eventImage"
+                value={form.eventImage}
+                onChange={handleChange}
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="form-field full">
+              <label>Google Form Registration Link</label>
+              <input
+                type="url"
+                name="registrationLink"
+                value={form.registrationLink}
+                onChange={handleChange}
+                placeholder="https://docs.google.com/forms/d/e/<FORM_ID>/viewform"
+              />
+            </div>
+            
+            <div className="prize-heading">Event Details (Content)</div>
+            
+            <div className="form-field full">
+              <label>Description / About</label>
+              <textarea
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                placeholder="Enter a brief description of the event..."
+                rows="4"
+              />
+            </div>
+
+            <div className="form-field full">
+              <label>Rules (Markdown/Text)</label>
+              <textarea
+                name="rules"
+                value={form.rules}
+                onChange={handleChange}
+                placeholder="Enter rules (e.g. 1. No spikes 2. Umpire decision is final...)"
+                rows="4"
+              />
+            </div>
+
+            <div className="form-field full">
+              <label>Key Highlights (Markdown/Text)</label>
+              <textarea
+                name="keyHighlights"
+                value={form.keyHighlights}
+                onChange={handleChange}
+                placeholder="Enter highlights..."
+                rows="3"
+              />
+            </div>
+
+            {message && <div className="admin-success">✓ {message}</div>}
+            {error && <div className="admin-form-error">{error}</div>}
+
+            <button
+              type="submit"
+              className="save-event-button"
+              disabled={loading}
+            >
+              {loading
+                ? "Saving..."
+                : editingId
+                ? "Update Event"
+                : "Create Event"}
+            </button>
+          </form>
+        </section>
+
+        <section className="existing-events">
+          <div className="admin-card-heading">
+>>>>>>> 911e5f7 (Update frontend pages, backend models, and add new assets)
             <div>
               <h2 style={{ fontSize: "1.4rem", fontWeight: 800 }}>Events</h2>
               <p style={{ fontSize: "0.88rem", color: "var(--text-muted)" }}>
