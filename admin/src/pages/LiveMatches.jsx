@@ -161,7 +161,7 @@ export default function LiveMatches() {
                 </div>
                 <div style={{ display: "flex", gap: "8px" }}>
                   {activeTab !== "COMPLETED" && (
-                    <button className="btn btn-coral" style={{ flex: 1 }}>Score Match</button>
+                    <button className="btn btn-coral" style={{ flex: 1 }} onClick={() => window.location.href = `/live-matches/${match._id}/score`}>Score Match</button>
                   )}
                   <button className="btn btn-outline" style={{ flex: 1 }}>Details</button>
                 </div>

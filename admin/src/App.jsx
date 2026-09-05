@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
 import AdminDashboard from "./pages/AdminDashboard";
 import TournamentManagement from "./pages/TournamentManagement";
+import LiveScoringConsole from "./pages/LiveScoringConsole";
 
 function App() {
   return (
@@ -15,6 +16,11 @@ function App() {
       <Route
         path="/tournament/:eventId"
         element={<TournamentManagement />}
+      />
+
+      <Route
+        path="/live-matches/:matchId/score"
+        element={<LiveScoringConsole />}
       />
 
       <Route
