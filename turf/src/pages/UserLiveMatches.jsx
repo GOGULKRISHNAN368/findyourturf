@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { socket } from "../services/socket";
 import { PlayCircle } from "lucide-react";
+import { API_URL } from "../services/config";
 
 // Assuming we have a MobileHeader similar to App.jsx
 // We'll just build a basic UI for now
@@ -12,8 +13,7 @@ export default function UserLiveMatches() {
     // This is a placeholder for fetching live matches from the API
     const fetchMatches = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        const response = await fetch(`${apiUrl}/api/live-matches/live`, {
+        const response = await fetch(`${API_URL}/api/live-matches/live`, {
           headers: {
             "Content-Type": "application/json"
           }

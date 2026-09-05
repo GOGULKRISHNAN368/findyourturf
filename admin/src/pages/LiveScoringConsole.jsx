@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { socket } from "../services/socket";
 import { IconChevronLeft } from "../components/common/Icons";
+import { API_URL } from "../services/config";
 
 export default function LiveScoringConsole() {
   const { matchId } = useParams();
@@ -11,8 +12,7 @@ export default function LiveScoringConsole() {
 
   const fetchMatchDetails = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      const response = await fetch(`${apiUrl}/api/live-matches/admin/${matchId}`);
+      const response = await fetch(`${API_URL}/api/live-matches/admin/${matchId}`);
       const data = await response.json();
       if (data.success) {
         setMatch(data.match);
@@ -41,10 +41,9 @@ export default function LiveScoringConsole() {
 
   const scoreBall = async (runs, extras = null, isWicket = false, isBoundary = false) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const payload = { runs, isBoundary, extras, isWicket };
       
-      const res = await fetch(`${apiUrl}/api/live-matches/${matchId}/score`, {
+      const res = await fetch(`${API_URL}/api/live-matches/${matchId}/score`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -58,8 +57,7 @@ export default function LiveScoringConsole() {
 
   const undoLastBall = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      await fetch(`${apiUrl}/api/live-matches/${matchId}/undo`, { method: "POST" });
+      await fetch(`${API_URL}/api/live-matches/${matchId}/undo`, { method: "POST" });
     } catch (err) {
       console.error(err);
     }
@@ -142,8 +140,7 @@ export default function LiveScoringConsole() {
             
             {match.state.status === "UPCOMING" && (
               <button className="btn btn-primary" onClick={async () => {
-                const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-                await fetch(`${apiUrl}/api/live-matches/${matchId}/state`, {
+                await fetch(`${API_URL}/api/live-matches/${matchId}/state`, {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ toss: { wonBy: "Team A", decision: "BAT" }, state: { status: "LIVE", battingTeamId: "Team A", bowlingTeamId: "Team B" }})
                 });

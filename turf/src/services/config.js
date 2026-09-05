@@ -3,12 +3,8 @@ function getBackendBaseUrl() {
     return import.meta.env.VITE_API_URL;
   }
   
-  const hostname =
-    typeof window !== "undefined" && window.location.hostname
-      ? window.location.hostname
-      : "localhost";
-
-  return `http://${hostname}:5000`;
+  // Fallback to the production Render backend url if env var is missing
+  return "https://turf-hub-backend.onrender.com";
 }
 
 export const API_URL = getBackendBaseUrl();

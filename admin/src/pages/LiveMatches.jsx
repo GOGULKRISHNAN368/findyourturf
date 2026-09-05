@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { socket } from "../services/socket";
 import { IconLive, IconPlus } from "../components/common/Icons";
-
 import Modal from "../components/common/Modal";
+import { API_URL } from "../services/config";
 
 export default function LiveMatches() {
   const [matches, setMatches] = useState([]);
@@ -27,8 +27,7 @@ export default function LiveMatches() {
     // Normally you'd fetch from /api/live-matches here
     const fetchMatches = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        const response = await fetch(`${apiUrl}/api/live-matches/admin`, {
+        const response = await fetch(`${API_URL}/api/live-matches/admin`, {
           headers: {
             "Content-Type": "application/json"
           }
@@ -88,8 +87,7 @@ export default function LiveMatches() {
         teamB: { name: matchForm.teamB_name, shortName: matchForm.teamB_short, players: [] }
       };
 
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      const res = await fetch(`${apiUrl}/api/live-matches`, {
+      const res = await fetch(`${API_URL}/api/live-matches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
