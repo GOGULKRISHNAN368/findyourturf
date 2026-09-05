@@ -12,7 +12,8 @@ export default function UserLiveMatches() {
     // This is a placeholder for fetching live matches from the API
     const fetchMatches = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/live-matches/live", {
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const response = await fetch(`${apiUrl}/api/live-matches/live`, {
           headers: {
             "Content-Type": "application/json"
           }

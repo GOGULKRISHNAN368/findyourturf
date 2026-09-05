@@ -27,7 +27,8 @@ export default function LiveMatches() {
     // Normally you'd fetch from /api/live-matches here
     const fetchMatches = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/live-matches/admin", {
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const response = await fetch(`${apiUrl}/api/live-matches/admin`, {
           headers: {
             "Content-Type": "application/json"
           }
@@ -87,7 +88,8 @@ export default function LiveMatches() {
         teamB: { name: matchForm.teamB_name, shortName: matchForm.teamB_short, players: [] }
       };
 
-      const res = await fetch("http://localhost:5000/api/live-matches", {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const res = await fetch(`${apiUrl}/api/live-matches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
