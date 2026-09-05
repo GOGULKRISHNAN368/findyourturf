@@ -6,11 +6,10 @@ const liveMatchController = require("../controllers/liveMatchController");
 router.post("/", liveMatchController.createMatch);
 router.get("/admin", liveMatchController.getAdminMatches); // For admin dashboard list
 router.get("/admin/:id", liveMatchController.getMatchDetails);
-router.patch("/admin/:id/state", liveMatchController.updateMatchState); // Start match, set toss, etc.
-router.post("/admin/:id/score", liveMatchController.scoreBall);
-router.post("/admin/:id/wicket", liveMatchController.scoreWicket);
-router.post("/admin/:id/undo", liveMatchController.undoLastBall);
-router.post("/admin/:id/complete", liveMatchController.completeMatch);
+router.post("/:id/state", liveMatchController.updateMatchState); // Start match, set toss, etc.
+router.post("/:id/score", liveMatchController.scoreBall);
+router.post("/:id/undo", liveMatchController.undoLastBall);
+router.post("/:id/complete", liveMatchController.completeMatch);
 
 // User/Public routes
 router.get("/live", liveMatchController.getLiveMatches);
