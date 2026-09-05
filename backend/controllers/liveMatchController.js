@@ -14,8 +14,34 @@ function emitToRoom(req, matchId, eventName, data) {
 
 exports.createMatch = async (req, res) => {
   try {
-    const match = new LiveMatch(req.body);
+    const {
+      tournamentId,
+      matchName,
+      format,
+      overs,
+      venue,
+      scheduledAt,
+      teamA,
+      teamB
+    } = req.body;
+
+    const match = new LiveMatch({
+      tournamentId,
+      matchName,
+      format,
+      overs,
+      venue,
+      scheduledAt,
+      teamA,
+      teamB,
+      state: {
+        status: "UPCOMING",
+        currentInnings: 1,
+      }
+    });
+
     await match.save();
+    emitToRoom(req, "global", "new-live-match", match);
     res.status(201).json({ success: true, match });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
