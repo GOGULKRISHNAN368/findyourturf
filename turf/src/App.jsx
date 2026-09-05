@@ -36,6 +36,7 @@ import { socket } from "./services/socket";
 import BookTurf from "./pages/BookTurf";
 import TurfDetails from "./pages/TurfDetails";
 import Checkout from "./pages/Checkout";
+import UserLiveMatches from "./pages/UserLiveMatches";
 
 // Banners
 import banner1 from "./assets/banners/promo_tournaments_1788516995082.jpg";
@@ -249,7 +250,7 @@ function BottomNavigation() {
       </button>
       <button 
         className={`nav-item-new ${location.pathname === '/live' ? 'active' : ''}`}
-        onClick={() => {}}
+        onClick={() => navigate("/live")}
       >
         <PlayCircle size={24} />
         <span className="nav-label-new">Live</span>
@@ -740,6 +741,7 @@ function App() {
       <Route path="/turfs" element={<BookTurf />} />
       <Route path="/turfs/:id" element={<TurfDetails />} />
       <Route path="/turfs/:id/checkout" element={<Checkout />} />
+      <Route path="/live" element={<UserLiveMatches />} />
     </Routes>
   );
 }

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import {
   IconDashboard,
   IconCalendar,
+  IconLive,
   IconX,
   IconShield,
   IconCollapse,
@@ -26,6 +27,7 @@ export default function Sidebar({
   const navItems = [
     { id: "overview", label: "Dashboard", icon: IconDashboard },
     { id: "events", label: "Events", icon: IconCalendar, count: counts.events },
+    { id: "live-matches", label: "Live Matches", icon: IconLive },
   ];
 
   return (

@@ -6,6 +6,7 @@ import Badge from "../components/common/Badge";
 import EmptyState from "../components/common/EmptyState";
 import { SkeletonCard, SkeletonTable } from "../components/common/Skeleton";
 import Modal from "../components/common/Modal";
+import LiveMatches from "./LiveMatches";
 import {
   IconCalendar,
   IconTrophy,
@@ -599,14 +600,8 @@ export default function AdminDashboard() {
           ? "Dashboard Overview"
           : activeTab === "events"
           ? "Events Management"
-          : activeTab === "tournaments"
-          ? "Tournament Management"
-          : activeTab === "teams"
-          ? "Team Management"
-          : activeTab === "matches"
-          ? "Match Management"
-          : activeTab === "livescore"
-          ? "Live Scores Console"
+          : activeTab === "live-matches"
+          ? "Live Matches Console"
           : "System Settings"
       }
       breadcrumb={`Overview / ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
@@ -720,7 +715,14 @@ export default function AdminDashboard() {
       )}
 
       {/* -------------------------------------------------------------------
-          TAB 2: EVENTS MANAGEMENT
+          TAB 2: LIVE MATCHES CONSOLE
+          ------------------------------------------------------------------- */}
+      {activeTab === "live-matches" && (
+        <LiveMatches />
+      )}
+
+      {/* -------------------------------------------------------------------
+          TAB 3: EVENTS MANAGEMENT
           ------------------------------------------------------------------- */}
       {activeTab === "events" && (
         <div>
