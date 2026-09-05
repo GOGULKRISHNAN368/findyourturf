@@ -1,18 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   IconDashboard,
   IconCalendar,
-  IconTrophy,
-  IconUsers,
-  IconMatch,
-  IconLive,
-  IconSettings,
-  IconLogout,
   IconX,
   IconShield,
   IconCollapse,
 } from "../common/Icons";
-import { getAdmin, logoutAdmin } from "../../services/auth";
 
 export default function Sidebar({
   activeTab,
@@ -23,9 +16,6 @@ export default function Sidebar({
   setCollapsed = null,
   counts = {},
 }) {
-  const navigate = useNavigate();
-  const admin = getAdmin();
-
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
     if (setMobileOpen) {
@@ -33,18 +23,9 @@ export default function Sidebar({
     }
   };
 
-  const handleLogout = () => {
-    logoutAdmin();
-    navigate("/login");
-  };
-
   const navItems = [
     { id: "overview", label: "Dashboard", icon: IconDashboard },
     { id: "events", label: "Events", icon: IconCalendar, count: counts.events },
-    { id: "tournaments", label: "Tournaments", icon: IconTrophy, count: counts.tournaments },
-    { id: "teams", label: "Teams", icon: IconUsers, count: counts.teams },
-    { id: "matches", label: "Matches", icon: IconMatch, count: counts.matches },
-    { id: "livescore", label: "Live Scores", icon: IconLive, isLive: Boolean(counts.liveMatches), count: counts.liveMatches },
   ];
 
   return (
@@ -139,50 +120,6 @@ export default function Sidebar({
               </button>
             );
           })}
-
-          <div style={{ marginTop: "auto" }} />
-
-          {!collapsed && <div className="nav-section-label">Account</div>}
-
-          <button
-            className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
-            onClick={() => handleNavClick("settings")}
-            title={collapsed ? "Settings" : undefined}
-          >
-            <IconSettings size={19} />
-            {!collapsed && <span>Settings</span>}
-          </button>
-        </div>
-
-        <div className="sidebar-footer">
-          {!collapsed ? (
-            <>
-              <div className="sidebar-user-card">
-                <div className="user-avatar-circle">
-                  {(admin?.name || "A").charAt(0).toUpperCase()}
-                </div>
-                <div className="user-info-text">
-                  <div className="user-display-name">{admin?.name || "Admin"}</div>
-                  <div className="user-role-label">Administrator</div>
-                </div>
-              </div>
-
-              <button className="logout-nav-btn" onClick={handleLogout}>
-                <IconLogout size={16} />
-                <span>Logout</span>
-              </button>
-            </>
-          ) : (
-            <button
-              className="topbar-icon-btn"
-              style={{ margin: "0 auto", color: "#fda4af" }}
-              onClick={handleLogout}
-              title="Logout"
-              aria-label="Logout"
-            >
-              <IconLogout size={18} />
-            </button>
-          )}
         </div>
       </aside>
     </>
