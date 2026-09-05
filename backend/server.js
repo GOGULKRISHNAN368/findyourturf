@@ -118,6 +118,9 @@ app.use("/api/tournaments", tournamentRoutes);
 const userRoutes = require("./routes/userRoutes");
 app.use("/api/users", userRoutes);
 
+const liveMatchRoutes = require("./routes/liveMatchRoutes");
+app.use("/api/live-matches", liveMatchRoutes);
+
 io.on("connection", (socket) => {
   console.log("✅ Client connected:", socket.id);
 
