@@ -99,11 +99,13 @@ export default function LiveMatches() {
         setIsAssignModalOpen(false);
         setMatchForm({ matchName: "", format: "T20", overs: 20, venue: "", scheduledAt: "", teamA_name: "", teamA_short: "", teamB_name: "", teamB_short: "" });
       } else {
-        alert("Failed to assign match");
+        const errData = await res.json();
+        console.error("Assign match error", errData);
+        alert(`Failed to assign match: ${errData.error || errData.message || 'Unknown error'}`);
       }
     } catch (err) {
       console.error(err);
-      alert("Error assigning match");
+      alert(`Error assigning match: ${err.message}`);
     } finally {
       setLoading(false);
     }
