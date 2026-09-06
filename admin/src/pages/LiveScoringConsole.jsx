@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { socket } from "../services/socket";
-import { IconChevronLeft } from "../components/common/Icons";
+import { IconArrowLeft } from "../components/common/Icons";
 import { API_URL } from "../services/config";
 
 export default function LiveScoringConsole() {
@@ -42,22 +42,34 @@ export default function LiveScoringConsole() {
   const scoreBall = async (runs, extras = null, isWicket = false, isBoundary = false) => {
     try {
       const payload = { runs, isBoundary, extras, isWicket };
-      
+
       const res = await fetch(`${API_URL}/api/live-matches/${matchId}/score`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      
-      if (!res.ok) alert("Error scoring ball");
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        alert(`Error scoring ball: ${data.error || data.message || res.status}`);
+        return;
+      }
+      if (data.match) setMatch(data.match);
+      else await fetchMatchDetails();
     } catch (err) {
       console.error(err);
+      alert("Network error while scoring. Is the backend running?");
     }
   };
 
   const undoLastBall = async () => {
     try {
-      await fetch(`${API_URL}/api/live-matches/${matchId}/undo`, { method: "POST" });
+      const res = await fetch(`${API_URL}/api/live-matches/${matchId}/undo`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.match) setMatch(data.match);
+      else await fetchMatchDetails();
     } catch (err) {
       console.error(err);
     }
@@ -73,7 +85,7 @@ export default function LiveScoringConsole() {
   return (
     <div style={{ padding: "20px" }}>
       <button className="btn btn-outline" onClick={() => navigate(-1)} style={{ marginBottom: "20px" }}>
-        <IconChevronLeft size={16} /> Back to Matches
+        <IconArrowLeft size={16} /> Back to Matches
       </button>
 
       <div style={{ display: "flex", gap: "20px" }}>
@@ -137,18 +149,42 @@ export default function LiveScoringConsole() {
             <button className="btn btn-outline" style={{ color: "#f43f5e", borderColor: "#f43f5e" }} onClick={undoLastBall}>
               Undo Last Ball
             </button>
-            
+
             {match.state.status === "UPCOMING" && (
               <button className="btn btn-primary" onClick={async () => {
-                await fetch(`${API_URL}/api/live-matches/${matchId}/state`, {
+                const res = await fetch(`${API_URL}/api/live-matches/${matchId}/state`, {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ toss: { wonBy: "Team A", decision: "BAT" }, state: { status: "LIVE", battingTeamId: "Team A", bowlingTeamId: "Team B" }})
                 });
+                const data = await res.json().catch(() => ({}));
+                if (data.match) setMatch(data.match);
+                else await fetchMatchDetails();
               }}>
                 Start Match (Team A Batting)
               </button>
             )}
+
+            {match.state.status !== "UPCOMING" && match.state.status !== "COMPLETED" && (
+              <button
+                className="btn btn-outline"
+                onClick={async () => {
+                  if (!window.confirm("End this match and publish the result?")) return;
+                  const res = await fetch(`${API_URL}/api/live-matches/${matchId}/complete`, { method: "POST" });
+                  const data = await res.json().catch(() => ({}));
+                  if (data.success) navigate(-1);
+                  else alert(data.error || "Could not complete match");
+                }}
+              >
+                End Match
+              </button>
+            )}
           </div>
+
+          {match.state.status === "COMPLETED" && (
+            <div style={{ marginTop: 16, padding: 12, background: "#eef8f0", color: "#157f3b", borderRadius: 8, fontWeight: 600, textAlign: "center" }}>
+              {match.resultText || `${match.winner || "Match"} — completed`}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -30,8 +30,12 @@ async function request(path, options = {}) {
 
     if (!response.ok) {
       if (response.status === 401) {
+        // Token missing/expired/invalid -> drop it and bounce to login.
+        localStorage.removeItem("token");
+        localStorage.removeItem("admin");
+        window.dispatchEvent(new Event("admin-auth-changed"));
         const error = new Error(
-          data.message || "Authentication required or session expired. Please sign in again."
+          data.message || "Session expired. Please sign in again."
         );
         error.status = 401;
         error.data = data;

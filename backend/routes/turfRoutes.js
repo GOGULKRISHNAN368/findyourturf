@@ -14,18 +14,20 @@ router.post("/", protect, async (req, res) => {
             location,
             pricePerHour,
             sportType,
-            available
+            available,
+            openingTime,
+            closingTime,
+            slotDurationMinutes
         } = req.body;
 
         if (
             !name ||
             !location ||
             pricePerHour === undefined ||
-            !sportType ||
-            available === undefined
+            !sportType
         ) {
             return res.status(400).json({
-                message: "All turf fields are required"
+                message: "name, location, pricePerHour and sportType are required"
             });
         }
 
@@ -34,7 +36,10 @@ router.post("/", protect, async (req, res) => {
             location,
             pricePerHour,
             sportType,
-            available
+            available: available === undefined ? true : available,
+            ...(openingTime ? { openingTime } : {}),
+            ...(closingTime ? { closingTime } : {}),
+            ...(slotDurationMinutes ? { slotDurationMinutes } : {})
         });
 
         const savedTurf = await turf.save();
@@ -102,18 +107,25 @@ router.put("/:id", protect, async (req, res) => {
             location,
             pricePerHour,
             sportType,
-            available
+            available,
+            openingTime,
+            closingTime,
+            slotDurationMinutes
         } = req.body;
+
+        const updates = {};
+        if (name !== undefined) updates.name = name;
+        if (location !== undefined) updates.location = location;
+        if (pricePerHour !== undefined) updates.pricePerHour = pricePerHour;
+        if (sportType !== undefined) updates.sportType = sportType;
+        if (available !== undefined) updates.available = available;
+        if (openingTime !== undefined) updates.openingTime = openingTime;
+        if (closingTime !== undefined) updates.closingTime = closingTime;
+        if (slotDurationMinutes !== undefined) updates.slotDurationMinutes = slotDurationMinutes;
 
         const updatedTurf = await Turf.findByIdAndUpdate(
             req.params.id,
-            {
-                name,
-                location,
-                pricePerHour,
-                sportType,
-                available
-            },
+            updates,
             {
                 new: true,
                 runValidators: true
