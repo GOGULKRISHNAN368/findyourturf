@@ -3,8 +3,14 @@ import {
   IconSearch,
   IconRefresh,
   IconBell,
+  IconLogout,
 } from "../common/Icons";
-import { getAdmin } from "../../services/auth";
+import { getAdmin, logoutAdmin } from "../../services/auth";
+
+function handleLogout() {
+  logoutAdmin();
+  window.dispatchEvent(new Event("admin-auth-changed"));
+}
 
 export default function TopNavbar({
   title = "Dashboard",
@@ -81,6 +87,15 @@ export default function TopNavbar({
             <span className="topbar-user-role">Administrator</span>
           </div>
         </div>
+
+        <button
+          className="topbar-icon-btn"
+          onClick={handleLogout}
+          title="Sign out"
+          aria-label="Sign out"
+        >
+          <IconLogout size={18} />
+        </button>
       </div>
     </header>
   );

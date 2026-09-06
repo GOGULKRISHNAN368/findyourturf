@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { loginAdmin } from "../services/auth";
 import { IconEye, IconEyeOff, IconAlertCircle, IconArrowLeft, IconShield } from "../components/common/Icons";
 
-export default function AdminLogin() {
+export default function AdminLogin({ onSuccess }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -20,6 +20,8 @@ export default function AdminLogin() {
 
     try {
       await loginAdmin(email, password);
+      window.dispatchEvent(new Event("admin-auth-changed"));
+      if (onSuccess) onSuccess();
       navigate(location.state?.from || "/admin", { replace: true });
     } catch (err) {
       setError(err.message || "Invalid email or password.");

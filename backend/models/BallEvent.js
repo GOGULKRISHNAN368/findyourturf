@@ -8,9 +8,11 @@ const ballEventSchema = new mongoose.Schema(
     overNumber: { type: Number, required: true }, // e.g. 8 (for the 9th over)
     ballNumber: { type: Number, required: true }, // e.g. 1 to 6
     
-    strikerId: { type: String, required: true },
-    nonStrikerId: { type: String, required: true },
-    bowlerId: { type: String, required: true },
+    // Optional: the simplified scoring console aggregates the team total
+    // and does not track individual batsmen / bowlers per ball.
+    strikerId: { type: String, default: "" },
+    nonStrikerId: { type: String, default: "" },
+    bowlerId: { type: String, default: "" },
     
     runsOffBat: { type: Number, default: 0 },
     isBoundary: { type: Boolean, default: false }, // true if 4 or 6 was hit off bat
