@@ -6,6 +6,44 @@ const router = express.Router();
 
 
 // ==========================================
+// GET BOOKED SLOTS FOR A TURF ON A DATE - PUBLIC
+// Returns the list of startTimes already taken so the
+// client can grey them out. Used by the booking screen.
+// ==========================================
+router.get("/booked-slots", async (req, res) => {
+    try {
+        const { turf, date } = req.query;
+
+        if (!turf || !date) {
+            return res.status(400).json({
+                message: "turf and date are required"
+            });
+        }
+
+        const day = new Date(date);
+        const nextDay = new Date(day);
+        nextDay.setDate(day.getDate() + 1);
+
+        const bookings = await Booking.find({
+            turf,
+            bookingDate: { $gte: day, $lt: nextDay },
+            status: { $ne: "Cancelled" }
+        }).select("startTime endTime");
+
+        res.json({
+            bookedSlots: bookings.map((b) => b.startTime),
+            bookings
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: error.message
+        });
+    }
+});
+
+
+// ==========================================
 // CHECK TURF AVAILABILITY - PUBLIC
 // ==========================================
 router.get("/availability", async (req, res) => {

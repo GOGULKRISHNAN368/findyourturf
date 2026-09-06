@@ -5,8 +5,15 @@ const CompletedMatch = require("../models/CompletedMatch");
 // --- UTILITY FUNCTIONS ---
 function emitToRoom(req, matchId, eventName, data) {
   const io = req.app.get("io");
-  if (io) {
-    io.to(`match:${matchId}`).emit(eventName, data);
+  if (!io) return;
+
+  // Room-scoped emit (kept for the single-match detail view).
+  io.to(`match:${matchId}`).emit(eventName, data);
+
+  // The public Live page does not join any room, so also broadcast
+  // score/state/lifecycle events to every connected client.
+  if (matchId === "global") {
+    io.emit(eventName, data);
   }
 }
 
