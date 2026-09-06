@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { socket } from "../services/socket";
-import { IconChevronLeft } from "../components/common/Icons";
+import { IconArrowLeft } from "../components/common/Icons";
 import { API_URL } from "../services/config";
 
 export default function LiveScoringConsole() {
@@ -73,7 +73,7 @@ export default function LiveScoringConsole() {
   return (
     <div style={{ padding: "20px" }}>
       <button className="btn btn-outline" onClick={() => navigate(-1)} style={{ marginBottom: "20px" }}>
-        <IconChevronLeft size={16} /> Back to Matches
+        <IconArrowLeft size={16} /> Back to Matches
       </button>
 
       <div style={{ display: "flex", gap: "20px" }}>
