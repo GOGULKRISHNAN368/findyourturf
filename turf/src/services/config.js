@@ -1,9 +1,15 @@
 function getBackendBaseUrl() {
+  // Explicit override always wins (Vercel sets this in production).
   if (import.meta.env && import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
-  // Fallback to the production Render backend url if env var is missing
+
+  // Local `npm run dev` with no env file -> talk to the local backend.
+  if (import.meta.env && import.meta.env.DEV) {
+    return "http://localhost:5000";
+  }
+
+  // Production fallback if VITE_API_URL was not set at build time.
   return "https://turf-hub-backend.onrender.com";
 }
 

@@ -86,10 +86,37 @@ export async function checkAvailability(turfId, date, startTime, endTime) {
   return data;
 }
 
+export async function getBookedSlots(turfId, date) {
+  try {
+    const data = await request(
+      `/api/bookings/booked-slots?turf=${turfId}&date=${date}`
+    );
+    return data.bookedSlots || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function createBooking(bookingData) {
   const data = await request("/api/bookings", {
     method: "POST",
     body: JSON.stringify(bookingData)
   });
   return data;
+}
+
+// --- Live matches ---
+export async function getLiveMatches() {
+  const data = await request("/api/live-matches/live");
+  return data.matches || [];
+}
+
+export async function getUpcomingMatches() {
+  const data = await request("/api/live-matches/upcoming");
+  return data.matches || [];
+}
+
+export async function getMatchResults() {
+  const data = await request("/api/live-matches/results");
+  return data.matches || [];
 }

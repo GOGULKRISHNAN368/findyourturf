@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, MapPin, SlidersHorizontal, ArrowLeft, Heart } from "lucide-react";
 import { getTurfs } from "../services/api";
+import { generateSlots } from "../services/slots";
 
 export default function BookTurf() {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ export default function BookTurf() {
           <h1>Book a Turf</h1>
           <div className="bt-location-meta">
             <MapPin size={12} />
-            <span>Chennai, India</span>
+            <span>Coimbatore, India</span>
           </div>
         </div>
         <button className="icon-btn">
@@ -135,12 +136,33 @@ export default function BookTurf() {
                   </div>
                   
                   <div className="bt-tc-slots-area">
-                    <div className="bt-tc-slots-heading">Available Today</div>
+                    <div className="bt-tc-slots-heading">
+                      Today · {turf.openingTime || "06:00"}–{turf.closingTime || "23:00"}
+                    </div>
                     <div className="bt-slots-row">
-                      <div className="bt-slot-chip available">6:00 PM</div>
-                      <div className="bt-slot-chip available">7:00 PM</div>
-                      <div className="bt-slot-chip available">8:00 PM</div>
-                      <div className="bt-slot-chip unavailable">9:00 PM</div>
+                      {(() => {
+                        const today = new Date().toISOString().split("T")[0];
+                        const upcoming = generateSlots(turf, { date: today }).filter(
+                          (s) => !s.isPast
+                        );
+                        if (upcoming.length === 0) {
+                          return (
+                            <div className="bt-slot-chip unavailable">
+                              Closed for today
+                            </div>
+                          );
+                        }
+                        return upcoming.slice(0, 4).map((s) => (
+                          <div
+                            key={s.value}
+                            className={`bt-slot-chip ${
+                              s.available ? "available" : "unavailable"
+                            }`}
+                          >
+                            {s.label}
+                          </div>
+                        ));
+                      })()}
                     </div>
                   </div>
 

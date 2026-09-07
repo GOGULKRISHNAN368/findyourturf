@@ -26,7 +26,28 @@ const turfSchema = new mongoose.Schema({
 
     available: {
         type: Boolean,
-        required: true
+        default: true
+    },
+
+    // --- Operating window used to generate booking slots on the client ---
+    // Stored as "HH:MM" 24h strings. Admin controls these per turf.
+    openingTime: {
+        type: String,
+        default: "06:00",
+        trim: true
+    },
+
+    closingTime: {
+        type: String,
+        default: "23:00",
+        trim: true
+    },
+
+    // Length of a single bookable slot, in minutes.
+    slotDurationMinutes: {
+        type: Number,
+        default: 60,
+        min: 15
     }
 });
 

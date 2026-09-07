@@ -5,9 +5,34 @@ const CompletedMatch = require("../models/CompletedMatch");
 // --- UTILITY FUNCTIONS ---
 function emitToRoom(req, matchId, eventName, data) {
   const io = req.app.get("io");
-  if (io) {
-    io.to(`match:${matchId}`).emit(eventName, data);
+  if (!io) return;
+
+  // Room-scoped emit (kept for the single-match detail view).
+  io.to(`match:${matchId}`).emit(eventName, data);
+
+  // The public Live page does not join any room, so also broadcast
+  // score/state/lifecycle events to every connected client.
+  if (matchId === "global") {
+    io.emit(eventName, data);
   }
+}
+
+// Map a live LiveMatch team ({name, shortName, ...}) onto the
+// CompletedMatch team snapshot shape ({nameSnapshot, ...}).
+function snapshotTeam(team) {
+  if (!team) return {};
+  return {
+    teamId: team._id ? String(team._id) : undefined,
+    nameSnapshot: team.name || "",
+    shortNameSnapshot: team.shortName || "",
+    logoSnapshot: team.logo || "",
+    players: (team.players || []).map((p) => ({
+      originalPlayerId: p.playerId || (p._id ? String(p._id) : undefined),
+      nameSnapshot: p.name || "",
+      roleSnapshot: p.role || "",
+      jerseyNumberSnapshot: p.jerseyNumber || "",
+    })),
+  };
 }
 
 // --- ADMIN CONTROLLERS ---
@@ -50,7 +75,9 @@ exports.createMatch = async (req, res) => {
 
 exports.getAdminMatches = async (req, res) => {
   try {
-    const active = await LiveMatch.find().sort({ createdAt: -1 });
+    const active = await LiveMatch.find({
+      "state.status": { $ne: "COMPLETED" },
+    }).sort({ createdAt: -1 });
     const completed = await CompletedMatch.find().sort({ completedAt: -1 });
     res.json({ success: true, active, completed });
   } catch (err) {
@@ -117,9 +144,9 @@ exports.scoreBall = async (req, res) => {
       sequenceNumber,
       overNumber,
       ballNumber: extras && extras.type && extras.type !== "LB" && extras.type !== "B" ? ballNumber - 1 : ballNumber,
-      strikerId: strikerId || match.state.strikerId,
-      nonStrikerId: nonStrikerId || match.state.nonStrikerId,
-      bowlerId: bowlerId || match.state.bowlerId,
+      strikerId: strikerId || match.state.strikerId || "",
+      nonStrikerId: nonStrikerId || match.state.nonStrikerId || "",
+      bowlerId: bowlerId || match.state.bowlerId || "",
       runsOffBat: runs,
       isBoundary,
       extras: extras || { type: null, runs: 0 },
@@ -161,25 +188,32 @@ exports.scoreBall = async (req, res) => {
       match.state.nonStrikerId = temp;
     }
     
+    // Resolve "Team A"/"Team B" slots to actual team names for results.
+    const nameFor = (slot) => {
+      const t = slot === "Team A" ? match.teamA : slot === "Team B" ? match.teamB : null;
+      return t?.name || t?.shortName || slot || "Team";
+    };
+
     // Check if innings over
     if (inningsScore.wickets >= 10 || inningsScore.legalBalls >= (match.overs * 6)) {
       if (match.state.currentInnings === 1) {
         match.state.status = "INNINGS_BREAK";
         match.state.currentInnings = 2;
         match.target = inningsScore.runs + 1;
+        const prevBatting = match.state.battingTeamId;
         match.state.battingTeamId = match.state.bowlingTeamId;
-        match.state.bowlingTeamId = match.state.battingTeamId; // Need to fix this swap properly on frontend
+        match.state.bowlingTeamId = prevBatting;
       } else {
         match.state.status = "COMPLETED";
         if (inningsScore.runs >= match.target) {
-           match.winner = match.state.battingTeamId;
-           match.resultText = `${match.state.battingTeamId} won`;
+           match.winner = nameFor(match.state.battingTeamId);
+           match.resultText = `${match.winner} won`;
         } else if (inningsScore.runs === match.target - 1) {
            match.winner = "Tie";
            match.resultText = "Match Tied";
         } else {
-           match.winner = match.state.bowlingTeamId;
-           match.resultText = `${match.state.bowlingTeamId} won`;
+           match.winner = nameFor(match.state.bowlingTeamId);
+           match.resultText = `${match.winner} won by ${match.target - 1 - inningsScore.runs} runs`;
         }
       }
     }
@@ -187,8 +221,38 @@ exports.scoreBall = async (req, res) => {
     // Check if target chased
     if (match.state.currentInnings === 2 && match.target && inningsScore.runs >= match.target) {
         match.state.status = "COMPLETED";
-        match.winner = match.state.battingTeamId;
-        match.resultText = `${match.state.battingTeamId} won by ${10 - inningsScore.wickets} wickets`;
+        match.winner = nameFor(match.state.battingTeamId);
+        match.resultText = `${match.winner} won by ${10 - inningsScore.wickets} wickets`;
+    }
+
+    // When the match finishes naturally, archive it to CompletedMatch so it
+    // shows on the user "Result" tab and the admin "Completed" list.
+    if (match.state.status === "COMPLETED") {
+      try {
+        const already = await CompletedMatch.findOne({ sourceMatchId: match._id });
+        if (!already) {
+          await CompletedMatch.create({
+            sourceMatchId: match._id,
+            tournamentId: match.tournamentId,
+            matchName: match.matchName,
+            sport: match.sport,
+            format: match.format,
+            overs: match.overs,
+            venueSnapshot: match.venue || "",
+            scheduledAt: match.scheduledAt,
+            startedAt: match.createdAt,
+            teamA: snapshotTeam(match.teamA),
+            teamB: snapshotTeam(match.teamB),
+            toss: match.toss,
+            winner: match.winner,
+            resultText: match.resultText,
+            completedAt: new Date(),
+          });
+          emitToRoom(req, "global", "match:completed", match);
+        }
+      } catch (archiveErr) {
+        console.error("Failed to archive completed match:", archiveErr.message);
+      }
     }
 
     await match.save();
@@ -251,7 +315,29 @@ exports.completeMatch = async (req, res) => {
     if (!match) return res.status(404).json({ success: false, error: "Match not found" });
 
     match.state.status = "COMPLETED";
-    
+
+    // If the match is ended before a natural finish, derive a result from
+    // whatever score we have so the "Result" tab still shows something useful.
+    let winner = match.winner;
+    let resultText = match.resultText;
+    if (!resultText) {
+      const a = match.score?.firstInnings?.runs || 0;
+      const b = match.score?.secondInnings?.runs || 0;
+      const teamAName = match.teamA?.name || match.teamA?.shortName || "Team A";
+      const teamBName = match.teamB?.name || match.teamB?.shortName || "Team B";
+      if (b === 0 && a === 0) {
+        resultText = "Match ended - no result";
+      } else if (a === b) {
+        winner = "Tie";
+        resultText = "Match tied";
+      } else {
+        // firstInnings is the team that batted first; without richer state we
+        // attribute the higher total to the batting-first side.
+        winner = a > b ? teamAName : teamBName;
+        resultText = `${winner} won`;
+      }
+    }
+
     // Create CompletedMatch snapshot
     const completedMatch = new CompletedMatch({
       sourceMatchId: match._id,
@@ -259,14 +345,15 @@ exports.completeMatch = async (req, res) => {
       matchName: match.matchName,
       sport: match.sport,
       format: match.format,
-      venue: match.venue,
+      overs: match.overs,
+      venueSnapshot: match.venue || "",
       scheduledAt: match.scheduledAt,
-      teamA: match.teamA,
-      teamB: match.teamB,
+      startedAt: match.createdAt,
+      teamA: snapshotTeam(match.teamA),
+      teamB: snapshotTeam(match.teamB),
       toss: match.toss,
-      score: match.score,
-      winner: match.winner,
-      resultText: match.resultText,
+      winner,
+      resultText,
       completedAt: new Date()
     });
 

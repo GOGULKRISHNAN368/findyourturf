@@ -1,40 +1,66 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { useLocation, useNavigate, Link } from "react-router-dom";
+import { ArrowLeft, CheckCircle2, User } from "lucide-react";
 import { createBooking } from "../services/api";
+import { getProfile, addLocalBooking } from "../services/profile";
+
+// Placeholder identity until real user accounts land. The booking API
+// requires a user id; the human-readable name/phone come from the local
+// profile and are stored with the booking on this device.
+const PLACEHOLDER_USER_ID = "64a0f44e1234567890abcdef";
 
 export default function Checkout() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   if (!state || !state.turf) {
     return <div className="status-box">Invalid booking session</div>;
   }
 
-  const { turf, date, slot } = state;
+  const { turf, date, slot, endSlot } = state;
+  const profile = getProfile();
   const platformFee = 20;
   const total = turf.pricePerHour + platformFee;
 
   const handleConfirm = async () => {
+    if (!profile) {
+      setError("Please add your name and phone number before booking.");
+      return;
+    }
     setLoading(true);
+    setError("");
     try {
-      // Assuming a generic user ID for now since auth isn't wired in frontend
       const bookingData = {
-        user: "64a0f44e1234567890abcdef", 
+        user: PLACEHOLDER_USER_ID,
         turf: turf._id,
         bookingDate: date,
         startTime: slot,
-        endTime: slot, // simplified
+        endTime: endSlot || slot,
         totalAmount: total,
-        status: "Confirmed"
+        status: "Confirmed",
       };
-      
+
       await createBooking(bookingData);
+
+      addLocalBooking({
+        turfId: turf._id,
+        turfName: turf.name,
+        turfLocation: turf.location,
+        date,
+        slot,
+        endSlot: endSlot || slot,
+        totalAmount: total,
+        status: "Confirmed",
+        bookedBy: profile.name,
+        phone: profile.phone,
+      });
+
       setSuccess(true);
     } catch (err) {
-      alert(err.message || "Failed to book");
+      setError(err.message || "Failed to book. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -103,11 +129,7 @@ export default function Checkout() {
             </div>
             <div className="co-detail-item">
               <small>Time</small>
-              <strong>{slot}</strong>
-            </div>
-            <div className="co-detail-item">
-              <small>Duration</small>
-              <strong>1 Hour</strong>
+              <strong>{endSlot ? `${slot} – ${endSlot}` : slot}</strong>
             </div>
             <div className="co-detail-item">
               <small>Facility</small>
@@ -115,6 +137,20 @@ export default function Checkout() {
             </div>
           </div>
         </div>
+
+        {profile ? (
+          <div className="co-summary-card" style={{ marginTop: 16 }}>
+            <div className="co-detail-item">
+              <small>Booking for</small>
+              <strong>{profile.name} · +91 {profile.phone}</strong>
+            </div>
+          </div>
+        ) : (
+          <Link to="/profile" className="co-profile-prompt">
+            <User size={18} />
+            <span>Add your name &amp; phone number to continue</span>
+          </Link>
+        )}
 
         <div className="co-price-breakdown">
           <h3 style={{ fontSize: 16, marginBottom: 16 }}>Price Breakdown</h3>
@@ -133,8 +169,14 @@ export default function Checkout() {
         </div>
       </div>
 
-      <div className="td-sticky-bottom" style={{ flexDirection: "column", height: 88, alignItems: "stretch", padding: "12px 16px" }}>
-        <button className="register-button" style={{ margin: 0 }} onClick={handleConfirm} disabled={loading}>
+      <div className="td-sticky-bottom" style={{ flexDirection: "column", height: "auto", alignItems: "stretch", padding: "12px 16px" }}>
+        {error && <p className="co-error">{error}</p>}
+        <button
+          className="register-button"
+          style={{ margin: 0, opacity: profile ? 1 : 0.5 }}
+          onClick={handleConfirm}
+          disabled={loading || !profile}
+        >
           {loading ? "Processing..." : `Pay ₹${total}`}
         </button>
       </div>

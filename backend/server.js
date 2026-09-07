@@ -11,6 +11,7 @@ const { Server } = require("socket.io");
 dotenv.config();
 
 const connectDB = require("./config/db");
+const seedAdmin = require("./config/seedAdmin");
 
 const app = express();
 const server = http.createServer(app);
@@ -145,6 +146,7 @@ server.on("error", (err) => {
 async function startServer() {
   try {
     await connectDB();
+    await seedAdmin();
 
     server.listen(PORT, "0.0.0.0", () => {
       console.log("----------------------------------");

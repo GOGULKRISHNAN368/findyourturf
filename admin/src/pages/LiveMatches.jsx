@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { socket } from "../services/socket";
 import { IconLive, IconPlus } from "../components/common/Icons";
 import Modal from "../components/common/Modal";
@@ -6,7 +6,7 @@ import { API_URL } from "../services/config";
 
 export default function LiveMatches() {
   const [matches, setMatches] = useState([]);
-  const [activeTab, setActiveTab] = useState("UPCOMING");
+  const [activeTab, setActiveTab] = useState("LIVE");
   
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,51 +22,45 @@ export default function LiveMatches() {
     teamB_short: "",
   });
 
-  useEffect(() => {
-    // This is a placeholder for fetching live matches from the API
-    // Normally you'd fetch from /api/live-matches here
-    const fetchMatches = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/live-matches/admin`, {
-          headers: {
-            "Content-Type": "application/json"
-          }
+  const fetchMatches = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/live-matches/admin`, {
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
+      if (data.success) {
+        const active = (data.active || []).map((m) => {
+          if (m.state?.status === "UPCOMING") m._displayTab = "UPCOMING";
+          else if (m.state?.status === "COMPLETED") m._displayTab = "COMPLETED";
+          else m._displayTab = "LIVE";
+          return m;
         });
-        const data = await response.json();
-        if (data.success) {
-          // Group by status client side for simplicity in this demo
-          const formattedMatches = (data.active || []).map(m => {
-             if(m.state?.status === "UPCOMING") m._displayTab = "UPCOMING";
-             else if(m.state?.status === "COMPLETED") m._displayTab = "COMPLETED";
-             else m._displayTab = "LIVE";
-             return m;
-          });
-          setMatches(formattedMatches);
-        }
-      } catch (err) {
-        console.error("Failed to fetch live matches", err);
+        const completed = (data.completed || []).map((m) => ({
+          ...m,
+          _displayTab: "COMPLETED",
+          state: m.state || { status: "COMPLETED" },
+        }));
+        setMatches([...active, ...completed]);
       }
-    };
-    
+    } catch (err) {
+      console.error("Failed to fetch live matches", err);
+    }
+  }, []);
+
+  useEffect(() => {
     fetchMatches();
-    
-    const handleScoreUpdated = (update) => {
-      // Handle real time updates without refresh
-      fetchMatches(); // Quick refresh for now
+
+    const refresh = () => fetchMatches();
+    socket.on("new-live-match", refresh);
+    socket.on("match:scoreUpdated", refresh);
+    socket.on("match:completed", refresh);
+
+    return () => {
+      socket.off("new-live-match", refresh);
+      socket.off("match:scoreUpdated", refresh);
+      socket.off("match:completed", refresh);
     };
-    
-      const handleNewMatch = () => {
-        fetchMatches();
-      };
-      
-      socket.on("new-live-match", handleNewMatch);
-      socket.on("match:scoreUpdated", handleScoreUpdated);
-      
-      return () => {
-        socket.off("new-live-match", handleNewMatch);
-        socket.off("match:scoreUpdated", handleScoreUpdated);
-      };
-    }, []);
+  }, [fetchMatches]);
 
   const handleInputChange = (e) => {
     setMatchForm({ ...matchForm, [e.target.name]: e.target.value });
@@ -96,6 +90,8 @@ export default function LiveMatches() {
       if(res.ok) {
         setIsAssignModalOpen(false);
         setMatchForm({ matchName: "", format: "T20", overs: 20, venue: "", scheduledAt: "", teamA_name: "", teamA_short: "", teamB_name: "", teamB_short: "" });
+        setActiveTab("UPCOMING");
+        await fetchMatches();
       } else {
         const errData = await res.json();
         console.error("Assign match error", errData);

@@ -2,19 +2,15 @@ import { useEffect, useState } from "react";
 import {
   Routes,
   Route,
-  Link,
   useNavigate,
-  useParams,
-  useLocation
+  useParams
 } from "react-router-dom";
-import { 
-  Bell, 
-  User, 
-  Trophy, 
-  Calendar, 
+import {
+  Bell,
+  User,
+  Trophy,
+  Calendar,
   PlayCircle,
-  Home as HomeIcon,
-  Compass,
   ChevronRight,
   MapPin,
   Search,
@@ -37,6 +33,10 @@ import BookTurf from "./pages/BookTurf";
 import TurfDetails from "./pages/TurfDetails";
 import Checkout from "./pages/Checkout";
 import UserLiveMatches from "./pages/UserLiveMatches";
+import Notifications from "./pages/Notifications";
+import Profile from "./pages/Profile";
+import BottomNav from "./components/BottomNav";
+import { getNotificationsSeenAt } from "./services/profile";
 
 // Banners
 import banner1 from "./assets/banners/promo_tournaments_1788516995082.jpg";
@@ -106,6 +106,14 @@ function useEvents() {
 }
 
 function MobileHeader() {
+  const navigate = useNavigate();
+  const [showBadge, setShowBadge] = useState(false);
+
+  useEffect(() => {
+    // Show the unread dot until the user opens the notifications screen once.
+    setShowBadge(!getNotificationsSeenAt());
+  }, []);
+
   return (
     <header className="app-header">
       <div className="header-logo-container">
@@ -116,13 +124,21 @@ function MobileHeader() {
         </div>
       </div>
       <div className="header-right">
-        <button className="notification-btn">
+        <button
+          className="notification-btn"
+          aria-label="Notifications"
+          onClick={() => navigate("/notifications")}
+        >
           <Bell size={22} color="#0E1224" />
-          <div className="notification-badge" />
+          {showBadge && <div className="notification-badge" />}
         </button>
-        <div className="profile-avatar-circle">
+        <button
+          className="profile-avatar-circle"
+          aria-label="Profile"
+          onClick={() => navigate("/profile")}
+        >
           <User size={24} />
-        </div>
+        </button>
       </div>
     </header>
   );
@@ -131,11 +147,10 @@ function MobileHeader() {
 function LocationSearch() {
   return (
     <div className="location-search-row">
-      <button className="loc-selector">
+      <div className="loc-selector">
         <MapPin size={18} color="#0E1224" />
-        <span className="loc-selector-text">Chennai</span>
-        <ChevronRight size={16} color="#0E1224" style={{ transform: 'rotate(90deg)' }} />
-      </button>
+        <span className="loc-selector-text">Coimbatore</span>
+      </div>
       <div className="search-input-box">
         <Search size={20} color="#9297A8" />
         <input type="text" placeholder="Search turfs, tournaments, players..." />
@@ -161,7 +176,7 @@ function QuickActions() {
         <div className="qa-title">Book<br/>Turf</div>
         <div className="qa-arrow-btn"><ArrowRight size={16} /></div>
       </button>
-      <button className="qa-card coral-bg" onClick={() => {}}>
+      <button className="qa-card coral-bg" onClick={() => navigate("/live")}>
         <PlayCircle size={28} className="qa-icon-top" />
         <PlayCircle size={90} className="qa-bg-icon" />
         <div className="qa-title">See Live<br/>Matches</div>
@@ -218,57 +233,10 @@ function PromotionalSlider() {
   );
 }
 
-function BottomNavigation() {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  return (
-    <nav className="bottom-nav-fixed">
-      <button 
-        className={`nav-item-new ${location.pathname === '/' ? 'active' : ''}`}
-        onClick={() => navigate("/")}
-      >
-        <HomeIcon size={24} />
-        <span className="nav-label-new">Home</span>
-        {location.pathname === '/' && <div className="nav-indicator" />}
-      </button>
-      <button 
-        className={`nav-item-new ${location.pathname === '/events' ? 'active' : ''}`}
-        onClick={() => navigate("/events")}
-      >
-        <Trophy size={24} />
-        <span className="nav-label-new">Events</span>
-        {location.pathname === '/events' && <div className="nav-indicator" />}
-      </button>
-      <button 
-        className={`nav-item-new ${location.pathname === '/bookings' ? 'active' : ''}`}
-        onClick={() => {}}
-      >
-        <Calendar size={24} />
-        <span className="nav-label-new">Bookings</span>
-        {location.pathname === '/bookings' && <div className="nav-indicator" />}
-      </button>
-      <button 
-        className={`nav-item-new ${location.pathname === '/live' ? 'active' : ''}`}
-        onClick={() => navigate("/live")}
-      >
-        <PlayCircle size={24} />
-        <span className="nav-label-new">Live</span>
-        {location.pathname === '/live' && <div className="nav-indicator" />}
-      </button>
-      <button 
-        className={`nav-item-new ${location.pathname === '/profile' ? 'active' : ''}`}
-        onClick={() => {}}
-      >
-        <User size={24} />
-        <span className="nav-label-new">Profile</span>
-        {location.pathname === '/profile' && <div className="nav-indicator" />}
-      </button>
-    </nav>
-  );
-}
+const BottomNavigation = BottomNav;
 
 function Home() {
+  const navigate = useNavigate();
   return (
     <div className="mobile-app-container">
       <MobileHeader />
@@ -282,7 +250,11 @@ function Home() {
         <section className="section-container">
           <div className="section-header-row">
             <h2>Upcoming Tournaments</h2>
-            <span className="section-view-all" style={{cursor: 'pointer'}}>
+            <span
+              className="section-view-all"
+              style={{ cursor: 'pointer' }}
+              onClick={() => navigate("/events")}
+            >
               View All <ChevronRight size={16} />
             </span>
           </div>
@@ -292,7 +264,11 @@ function Home() {
         <section className="section-container">
           <div className="section-header-row">
             <h2>Nearby Turfs</h2>
-            <span className="section-view-all" style={{cursor: 'pointer'}}>
+            <span
+              className="section-view-all"
+              style={{ cursor: 'pointer' }}
+              onClick={() => navigate("/turfs")}
+            >
               View All <ChevronRight size={16} />
             </span>
           </div>
@@ -358,6 +334,28 @@ function EventCard({ event }) {
   );
 }
 
+// "Nearby" for this launch = turfs around Peelamedu / Coimbatore,
+// and we intentionally do not surface Berkley Sports Center.
+const NEARBY_AREAS = ["peelamedu", "coimbatore"];
+const NEARBY_EXCLUDE = ["berkley"];
+
+function filterNearbyTurfs(turfs) {
+  const matched = turfs.filter((t) => {
+    const loc = `${t.location || ""} ${t.name || ""}`.toLowerCase();
+    const inArea = NEARBY_AREAS.some((a) => loc.includes(a));
+    const excluded = NEARBY_EXCLUDE.some((x) =>
+      (t.name || "").toLowerCase().includes(x)
+    );
+    return inArea && !excluded;
+  });
+  // Until the Coimbatore turfs are added in admin, fall back to the full
+  // list (minus excluded) so the section is never empty.
+  if (matched.length > 0) return matched;
+  return turfs.filter(
+    (t) => !NEARBY_EXCLUDE.some((x) => (t.name || "").toLowerCase().includes(x))
+  );
+}
+
 function NearbyTurfs() {
   const [turfs, setTurfs] = useState([]);
   const navigate = useNavigate();
@@ -366,11 +364,13 @@ function NearbyTurfs() {
     getTurfs().then(data => setTurfs(data || [])).catch(err => console.error(err));
   }, []);
 
-  if (turfs.length === 0) return null;
+  const nearby = filterNearbyTurfs(turfs);
+
+  if (nearby.length === 0) return null;
 
   return (
     <div className="horiz-scroll-list">
-      {turfs.map(turf => (
+      {nearby.map(turf => (
         <article key={turf._id} className="turf-h-card" onClick={() => navigate(`/turfs/${turf._id}`)}>
           <div className="turf-h-img-box">
             <img src="https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=400&auto=format&fit=crop" alt={turf.name} />
@@ -742,6 +742,8 @@ function App() {
       <Route path="/turfs/:id" element={<TurfDetails />} />
       <Route path="/turfs/:id/checkout" element={<Checkout />} />
       <Route path="/live" element={<UserLiveMatches />} />
+      <Route path="/notifications" element={<Notifications />} />
+      <Route path="/profile" element={<Profile />} />
     </Routes>
   );
 }
