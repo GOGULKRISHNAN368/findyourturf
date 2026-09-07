@@ -168,6 +168,20 @@ export async function createMatch(eventId, match) {
   });
 }
 
+export async function getAdminLiveMatches() {
+  return request("/api/live-matches/admin", {
+    headers: authHeaders(),
+  });
+}
+
+export async function createLiveMatch(match) {
+  return request("/api/live-matches", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(match),
+  });
+}
+
 export async function updateMatch(eventId, matchId, match) {
   return request(`/api/tournaments/${eventId}/match/${matchId}`, {
     method: "PUT",

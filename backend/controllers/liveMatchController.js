@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const LiveMatch = require("../models/LiveMatch");
 const BallEvent = require("../models/BallEvent");
 const CompletedMatch = require("../models/CompletedMatch");
@@ -49,6 +50,10 @@ function oversDisplay(legalBalls = 0) {
 function teamNameFor(match, slot) {
   const team = slot === "Team A" ? match.teamA : slot === "Team B" ? match.teamB : null;
   return team?.name || team?.shortName || slot || "Team";
+}
+
+function cleanText(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 async function archiveCompletedMatch(match) {
@@ -131,20 +136,54 @@ exports.createMatch = async (req, res) => {
       teamB
     } = req.body;
 
-    if (!matchName || !format || !Number.isInteger(Number(overs)) || Number(overs) < 1 ||
-      !scheduledAt || !teamA?.name || !teamA?.shortName || !teamB?.name || !teamB?.shortName) {
-      return res.status(400).json({ success: false, error: "Match name, format, overs, schedule and both teams are required" });
+    const normalizedMatchName = cleanText(matchName);
+    const normalizedFormat = cleanText(format);
+    const normalizedVenue = cleanText(venue);
+    const normalizedTeamA = {
+      ...(teamA || {}),
+      name: cleanText(teamA?.name),
+      shortName: cleanText(teamA?.shortName),
+      players: Array.isArray(teamA?.players) ? teamA.players : [],
+    };
+    const normalizedTeamB = {
+      ...(teamB || {}),
+      name: cleanText(teamB?.name),
+      shortName: cleanText(teamB?.shortName),
+      players: Array.isArray(teamB?.players) ? teamB.players : [],
+    };
+    const parsedOvers = Number(overs);
+    const parsedScheduledAt = new Date(scheduledAt);
+
+    if (!normalizedMatchName || normalizedMatchName.length > 120 || !normalizedFormat ||
+      !Number.isSafeInteger(parsedOvers) || parsedOvers < 1 || parsedOvers > 100 ||
+      !scheduledAt || Number.isNaN(parsedScheduledAt.getTime()) ||
+      !normalizedTeamA.name || !normalizedTeamA.shortName ||
+      !normalizedTeamB.name || !normalizedTeamB.shortName) {
+      return res.status(400).json({ success: false, message: "Enter a match name, format, overs from 1 to 100, valid schedule, and both teams." });
+    }
+
+    if (normalizedTeamA.name.toLowerCase() === normalizedTeamB.name.toLowerCase()) {
+      return res.status(400).json({ success: false, message: "Team A and Team B must be different teams." });
+    }
+
+    if (normalizedTeamA.shortName.toLowerCase() === normalizedTeamB.shortName.toLowerCase()) {
+      return res.status(400).json({ success: false, message: "Team short names must be different." });
+    }
+
+    const normalizedTournamentId = cleanText(tournamentId);
+    if (normalizedTournamentId && !mongoose.Types.ObjectId.isValid(normalizedTournamentId)) {
+      return res.status(400).json({ success: false, message: "The selected tournament is invalid." });
     }
 
     const match = new LiveMatch({
-      tournamentId,
-      matchName,
-      format,
-      overs,
-      venue,
-      scheduledAt,
-      teamA,
-      teamB,
+      ...(normalizedTournamentId ? { tournamentId: normalizedTournamentId } : {}),
+      matchName: normalizedMatchName,
+      format: normalizedFormat,
+      overs: parsedOvers,
+      venue: normalizedVenue,
+      scheduledAt: parsedScheduledAt,
+      teamA: normalizedTeamA,
+      teamB: normalizedTeamB,
       startedAt: null,
       state: {
         status: "UPCOMING",
@@ -156,7 +195,12 @@ exports.createMatch = async (req, res) => {
     emitToRoom(req, "global", "new-live-match", match);
     res.status(201).json({ success: true, match });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    const status = err?.name === "ValidationError" || err?.name === "CastError" ? 400 : 500;
+    res.status(status).json({
+      success: false,
+      message: status === 500 ? "Unable to assign the match right now." : err.message,
+      error: err.message,
+    });
   }
 };
 

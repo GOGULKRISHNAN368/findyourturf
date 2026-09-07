@@ -2,12 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { socket } from "../services/socket";
 import { IconLive, IconPlus } from "../components/common/Icons";
 import Modal from "../components/common/Modal";
-import { API_URL } from "../services/config";
-
-const authHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-});
+import { createLiveMatch, getAdminLiveMatches } from "../services/api";
 
 export default function LiveMatches() {
   const [matches, setMatches] = useState([]);
@@ -15,6 +10,8 @@ export default function LiveMatches() {
   
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [matchesLoading, setMatchesLoading] = useState(true);
+  const [error, setError] = useState("");
   const [matchForm, setMatchForm] = useState({
     matchName: "",
     format: "T20",
@@ -29,10 +26,9 @@ export default function LiveMatches() {
 
   const fetchMatches = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/live-matches/admin`, {
-        headers: authHeaders(),
-      });
-      const data = await response.json();
+      setMatchesLoading(true);
+      setError("");
+      const data = await getAdminLiveMatches();
       if (data.success) {
         const active = (data.active || []).map((m) => {
           if (m.state?.status === "UPCOMING") m._displayTab = "UPCOMING";
@@ -48,7 +44,9 @@ export default function LiveMatches() {
         setMatches([...active, ...completed]);
       }
     } catch (err) {
-      console.error("Failed to fetch live matches", err);
+      setError(err.message || "Unable to load matches.");
+    } finally {
+      setMatchesLoading(false);
     }
   }, []);
 
@@ -68,43 +66,53 @@ export default function LiveMatches() {
   }, [fetchMatches]);
 
   const handleInputChange = (e) => {
-    setMatchForm({ ...matchForm, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setMatchForm((current) => ({ ...current, [name]: value }));
   };
 
   const handleAssignMatch = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
+
+    const matchName = matchForm.matchName.trim();
+    const venue = matchForm.venue.trim();
+    const teamAName = matchForm.teamA_name.trim();
+    const teamAShort = matchForm.teamA_short.trim();
+    const teamBName = matchForm.teamB_name.trim();
+    const teamBShort = matchForm.teamB_short.trim();
+    const overs = Number(matchForm.overs);
+
+    if (!matchName || !Number.isInteger(overs) || overs < 1 || !matchForm.scheduledAt || !teamAName || !teamAShort || !teamBName || !teamBShort) {
+      setError("Enter a title, valid overs, schedule, and both teams before assigning the match.");
+      setLoading(false);
+      return;
+    }
+
+    if (teamAName.toLowerCase() === teamBName.toLowerCase()) {
+      setError("Team A and Team B must be different teams.");
+      setLoading(false);
+      return;
+    }
     
     try {
       const payload = {
-        matchName: matchForm.matchName,
+        matchName,
         format: matchForm.format,
-        overs: Number(matchForm.overs),
-        venue: matchForm.venue,
+        overs,
+        venue,
         scheduledAt: matchForm.scheduledAt,
-        teamA: { name: matchForm.teamA_name, shortName: matchForm.teamA_short, players: [] },
-        teamB: { name: matchForm.teamB_name, shortName: matchForm.teamB_short, players: [] }
+        teamA: { name: teamAName, shortName: teamAShort, players: [] },
+        teamB: { name: teamBName, shortName: teamBShort, players: [] }
       };
 
-      const res = await fetch(`${API_URL}/api/live-matches`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(payload)
-      });
-      
-      if(res.ok) {
-        setIsAssignModalOpen(false);
-        setMatchForm({ matchName: "", format: "T20", overs: 20, venue: "", scheduledAt: "", teamA_name: "", teamA_short: "", teamB_name: "", teamB_short: "" });
-        setActiveTab("UPCOMING");
-        await fetchMatches();
-      } else {
-        const errData = await res.json();
-        console.error("Assign match error", errData);
-        alert(`Failed to assign match: ${errData.error || errData.message || 'Unknown error'}`);
-      }
+      await createLiveMatch(payload);
+      setIsAssignModalOpen(false);
+      setMatchForm({ matchName: "", format: "T20", overs: 20, venue: "", scheduledAt: "", teamA_name: "", teamA_short: "", teamB_name: "", teamB_short: "" });
+      setActiveTab("UPCOMING");
+      await fetchMatches();
     } catch (err) {
-      console.error(err);
-      alert(`Error assigning match: ${err.message}`);
+      setError(err.message || "Unable to assign match.");
     } finally {
       setLoading(false);
     }
@@ -133,8 +141,12 @@ export default function LiveMatches() {
         ))}
       </div>
       
+      {error && <div className="alert-banner error" role="alert" style={{ marginBottom: "16px" }}>{error}</div>}
+
       <div className="card">
-        {filteredMatches.length === 0 ? (
+        {matchesLoading ? (
+          <div style={{ padding: "40px", textAlign: "center", color: "#666" }}>Loading matches...</div>
+        ) : filteredMatches.length === 0 ? (
           <div style={{ padding: "40px", textAlign: "center", color: "#666" }}>
             <IconLive size={48} style={{ opacity: 0.5, marginBottom: "10px" }} />
             <h3>No matches found</h3>
@@ -182,9 +194,11 @@ export default function LiveMatches() {
         title="Assign New Live Match"
       >
         <form onSubmit={handleAssignMatch} className="admin-form">
+            {error && <div className="alert-banner error" role="alert" style={{ marginBottom: "16px" }}>{error}</div>}
+
           <div className="form-group">
-            <label>Match Title</label>
-            <input name="matchName" value={matchForm.matchName} onChange={handleInputChange} required placeholder="e.g. Final - Group A" className="form-control" />
+              <label>Match Title</label>
+              <input name="matchName" value={matchForm.matchName} onChange={handleInputChange} required maxLength={120} placeholder="e.g. Final - Group A" className="form-control" />
           </div>
           
           <div className="form-row" style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
@@ -198,7 +212,7 @@ export default function LiveMatches() {
             </div>
             <div className="form-group" style={{ flex: 1 }}>
               <label>Overs</label>
-              <input type="number" name="overs" value={matchForm.overs} onChange={handleInputChange} required className="form-control" />
+              <input type="number" name="overs" value={matchForm.overs} onChange={handleInputChange} min="1" max="100" step="1" required className="form-control" />
             </div>
           </div>
 
