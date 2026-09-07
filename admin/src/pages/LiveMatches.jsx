@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { socket } from "../services/socket";
 import { IconLive, IconPlus } from "../components/common/Icons";
 import Modal from "../components/common/Modal";
 import { createLiveMatch, getAdminLiveMatches } from "../services/api";
 
 export default function LiveMatches() {
+  const navigate = useNavigate();
   const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState("LIVE");
   
@@ -172,12 +174,12 @@ export default function LiveMatches() {
                 </div>
                 <div style={{ display: "flex", gap: "8px" }}>
                   {activeTab !== "COMPLETED" && (
-                    <button className="btn btn-coral" style={{ flex: 1 }} onClick={() => window.location.href = `/live-matches/${match._id}/score`}>Score Match</button>
+                    <button className="btn btn-coral" style={{ flex: 1 }} onClick={() => navigate(`/live-matches/${match._id}/score`)}>Score Match</button>
                   )}
                   <button
                     className="btn btn-outline"
                     style={{ flex: 1 }}
-                    onClick={() => window.location.href = `/live-matches/${match._id}/score`}
+                    onClick={() => navigate(`/live-matches/${match._id}/score`)}
                   >
                     Details
                   </button>
