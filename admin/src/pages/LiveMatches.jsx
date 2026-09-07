@@ -1,8 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { socket } from "../services/socket";
 import { IconLive, IconPlus } from "../components/common/Icons";
 import Modal from "../components/common/Modal";
 import { API_URL } from "../services/config";
+
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+});
 
 export default function LiveMatches() {
   const [matches, setMatches] = useState([]);
@@ -25,7 +30,7 @@ export default function LiveMatches() {
   const fetchMatches = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/live-matches/admin`, {
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
       });
       const data = await response.json();
       if (data.success) {
@@ -83,7 +88,7 @@ export default function LiveMatches() {
 
       const res = await fetch(`${API_URL}/api/live-matches`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify(payload)
       });
       
@@ -157,7 +162,13 @@ export default function LiveMatches() {
                   {activeTab !== "COMPLETED" && (
                     <button className="btn btn-coral" style={{ flex: 1 }} onClick={() => window.location.href = `/live-matches/${match._id}/score`}>Score Match</button>
                   )}
-                  <button className="btn btn-outline" style={{ flex: 1 }}>Details</button>
+                  <button
+                    className="btn btn-outline"
+                    style={{ flex: 1 }}
+                    onClick={() => window.location.href = `/live-matches/${match._id}/score`}
+                  >
+                    Details
+                  </button>
                 </div>
               </div>
             ))}

@@ -1,15 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const liveMatchController = require("../controllers/liveMatchController");
+const protect = require("../middleware/authMiddleware");
 
-// Admin routes (would normally be protected by auth middleware)
-router.post("/", liveMatchController.createMatch);
-router.get("/admin", liveMatchController.getAdminMatches); // For admin dashboard list
-router.get("/admin/:id", liveMatchController.getMatchDetails);
-router.post("/:id/state", liveMatchController.updateMatchState); // Start match, set toss, etc.
-router.post("/:id/score", liveMatchController.scoreBall);
-router.post("/:id/undo", liveMatchController.undoLastBall);
-router.post("/:id/complete", liveMatchController.completeMatch);
+// Admin routes
+router.post("/", protect, liveMatchController.createMatch);
+router.get("/admin", protect, liveMatchController.getAdminMatches);
+router.get("/admin/:id", protect, liveMatchController.getMatchDetails);
+router.post("/:id/state", protect, liveMatchController.updateMatchState);
+router.post("/:id/score", protect, liveMatchController.scoreBall);
+router.post("/:id/undo", protect, liveMatchController.undoLastBall);
+router.post("/:id/complete", protect, liveMatchController.completeMatch);
 
 // User/Public routes
 router.get("/live", liveMatchController.getLiveMatches);

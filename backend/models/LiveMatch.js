@@ -31,6 +31,7 @@ const liveMatchSchema = new mongoose.Schema(
     overs: { type: Number, required: true },
     venue: { type: String, default: "" },
     scheduledAt: { type: Date, required: true },
+    startedAt: { type: Date, default: null },
     
     teamA: { type: teamSchema, required: true },
     teamB: { type: teamSchema, required: true },

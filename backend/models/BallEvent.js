@@ -30,6 +30,14 @@ const ballEventSchema = new mongoose.Schema(
       dismissedPlayerId: { type: String, default: null },
       fielderId: { type: String, default: null } // Optional
     },
+
+    // State snapshots make undo safe across innings breaks, target chases,
+    // wickets and manually completed matches.
+    previousState: { type: mongoose.Schema.Types.Mixed, default: null },
+    previousScore: { type: mongoose.Schema.Types.Mixed, default: null },
+    previousTarget: { type: Number, default: null },
+    previousWinner: { type: String, default: null },
+    previousResultText: { type: String, default: null },
     
     createdBy: { type: String, default: "Admin" }
   },

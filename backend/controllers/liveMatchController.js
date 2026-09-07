@@ -35,6 +35,87 @@ function snapshotTeam(team) {
   };
 }
 
+function cloneValue(value) {
+  if (!value) return value;
+  return typeof value.toObject === "function"
+    ? value.toObject()
+    : JSON.parse(JSON.stringify(value));
+}
+
+function oversDisplay(legalBalls = 0) {
+  return `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`;
+}
+
+function teamNameFor(match, slot) {
+  const team = slot === "Team A" ? match.teamA : slot === "Team B" ? match.teamB : null;
+  return team?.name || team?.shortName || slot || "Team";
+}
+
+async function archiveCompletedMatch(match) {
+  const ballEvents = await BallEvent.find({ matchId: match._id }).sort({ sequenceNumber: 1 });
+  const firstBattingTeam = match.state?.currentInnings === 2
+    ? match.state?.bowlingTeamId
+    : match.state?.battingTeamId;
+  const secondBattingTeam = firstBattingTeam === "Team A" ? "Team B" : "Team A";
+  const scorecards = {
+    firstInnings: {
+      team: teamNameFor(match, firstBattingTeam),
+      runs: match.score.firstInnings.runs,
+      wickets: match.score.firstInnings.wickets,
+      oversDisplay: oversDisplay(match.score.firstInnings.legalBalls),
+      extras: match.score.firstInnings.extras,
+    },
+    secondInnings: {
+      team: teamNameFor(match, secondBattingTeam),
+      runs: match.score.secondInnings.runs,
+      wickets: match.score.secondInnings.wickets,
+      oversDisplay: oversDisplay(match.score.secondInnings.legalBalls),
+      extras: match.score.secondInnings.extras,
+    },
+  };
+
+  const ballHistory = ballEvents.map((ball) => ({
+    innings: ball.innings,
+    overNumber: ball.overNumber,
+    ballNumber: ball.ballNumber,
+    strikerName: ball.strikerId || "",
+    bowlerName: ball.bowlerId || "",
+    summary: ball.isWicket
+      ? "W"
+      : ball.extras?.type
+        ? `${ball.extras.type}${ball.extras.runs || ""}`
+        : String(ball.runsOffBat || 0),
+  }));
+
+  return CompletedMatch.findOneAndUpdate(
+    { sourceMatchId: match._id },
+    {
+      $setOnInsert: {
+        sourceMatchId: match._id,
+        tournamentId: match.tournamentId,
+        matchName: match.matchName,
+        sport: match.sport,
+        format: match.format,
+        overs: match.overs,
+        venueSnapshot: match.venue || "",
+        scheduledAt: match.scheduledAt,
+        startedAt: match.startedAt || match.updatedAt || match.createdAt,
+        teamA: snapshotTeam(match.teamA),
+        teamB: snapshotTeam(match.teamB),
+        toss: match.toss,
+      },
+      $set: {
+        winner: match.winner,
+        resultText: match.resultText,
+        scorecards,
+        ballHistory,
+        completedAt: new Date(),
+      },
+    },
+    { new: true, upsert: true, runValidators: true }
+  );
+}
+
 // --- ADMIN CONTROLLERS ---
 
 exports.createMatch = async (req, res) => {
@@ -50,6 +131,11 @@ exports.createMatch = async (req, res) => {
       teamB
     } = req.body;
 
+    if (!matchName || !format || !Number.isInteger(Number(overs)) || Number(overs) < 1 ||
+      !scheduledAt || !teamA?.name || !teamA?.shortName || !teamB?.name || !teamB?.shortName) {
+      return res.status(400).json({ success: false, error: "Match name, format, overs, schedule and both teams are required" });
+    }
+
     const match = new LiveMatch({
       tournamentId,
       matchName,
@@ -59,6 +145,7 @@ exports.createMatch = async (req, res) => {
       scheduledAt,
       teamA,
       teamB,
+      startedAt: null,
       state: {
         status: "UPCOMING",
         currentInnings: 1,
@@ -102,13 +189,34 @@ exports.updateMatchState = async (req, res) => {
     if (!match) return res.status(404).json({ success: false, error: "Match not found" });
 
     const { toss, state, score } = req.body;
+    if (match.state.status === "COMPLETED" || match.state.status === "CANCELLED") {
+      return res.status(400).json({ success: false, error: "This match can no longer be changed" });
+    }
+    if (state?.status && !["UPCOMING", "LIVE", "INNINGS_BREAK"].includes(state.status)) {
+      return res.status(400).json({ success: false, error: "Invalid live match status" });
+    }
+    if (toss && (!['Team A', 'Team B'].includes(toss.wonBy) || !['BAT', 'BOWL'].includes(toss.decision))) {
+      return res.status(400).json({ success: false, error: "A valid toss winner and decision are required" });
+    }
     if (toss) match.toss = toss;
-    if (state) match.state = { ...match.state, ...state };
+    if (state) {
+      if (state.battingTeamId && !["Team A", "Team B"].includes(state.battingTeamId)) {
+        return res.status(400).json({ success: false, error: "Invalid batting team" });
+      }
+      if (state.bowlingTeamId && !["Team A", "Team B"].includes(state.bowlingTeamId)) {
+        return res.status(400).json({ success: false, error: "Invalid bowling team" });
+      }
+      match.state = { ...match.state, ...state };
+    }
     if (score) match.score = score;
     
     // If setting toss, we usually transition from UPCOMING to LIVE
     if (toss && match.state.status === "UPCOMING") {
       match.state.status = "LIVE";
+      match.startedAt = match.startedAt || new Date();
+    }
+    if (state?.status === "LIVE") {
+      match.startedAt = match.startedAt || new Date();
     }
 
     await match.save();
@@ -126,7 +234,28 @@ exports.scoreBall = async (req, res) => {
     const match = await LiveMatch.findById(req.params.id);
     if (!match) return res.status(404).json({ success: false, error: "Match not found" });
 
-    const { runs, isBoundary, extras, isWicket, wicketDetails, strikerId, nonStrikerId, bowlerId } = req.body;
+    if (match.state.status !== "LIVE") {
+      return res.status(400).json({ success: false, error: "Start or resume the innings before scoring" });
+    }
+
+    const { runs = 0, isBoundary = false, extras = null, isWicket = false, wicketDetails, strikerId, nonStrikerId, bowlerId } = req.body;
+    const boundary = isBoundary === true;
+    const wicketTaken = isWicket === true;
+    const batRuns = Number(runs);
+    const extraRuns = extras ? Number(extras.runs) : 0;
+    const extraType = extras?.type || null;
+    if (!Number.isInteger(batRuns) || batRuns < 0 || batRuns > 6) {
+      return res.status(400).json({ success: false, error: "Runs must be a whole number from 0 to 6" });
+    }
+    if (extraType && !["WD", "NB", "LB", "B"].includes(extraType)) {
+      return res.status(400).json({ success: false, error: "Invalid extra type" });
+    }
+    if (extraType && (!Number.isInteger(extraRuns) || extraRuns < 1 || extraRuns > 6)) {
+      return res.status(400).json({ success: false, error: "Extras must be a whole number from 1 to 6" });
+    }
+    if (boundary && ![4, 6].includes(batRuns)) {
+      return res.status(400).json({ success: false, error: "A boundary must be 4 or 6 runs" });
+    }
     const currentInningsIndex = match.state.currentInnings === 1 ? "firstInnings" : "secondInnings";
     const inningsScore = match.score[currentInningsIndex];
     
@@ -140,42 +269,47 @@ exports.scoreBall = async (req, res) => {
     // Create the ball event
     const ballEvent = new BallEvent({
       matchId: match._id,
+      previousState: cloneValue(match.state),
+      previousScore: cloneValue(match.score),
+      previousTarget: match.target,
+      previousWinner: match.winner,
+      previousResultText: match.resultText,
       innings: match.state.currentInnings,
       sequenceNumber,
       overNumber,
-      ballNumber: extras && extras.type && extras.type !== "LB" && extras.type !== "B" ? ballNumber - 1 : ballNumber,
+      ballNumber,
       strikerId: strikerId || match.state.strikerId || "",
       nonStrikerId: nonStrikerId || match.state.nonStrikerId || "",
       bowlerId: bowlerId || match.state.bowlerId || "",
-      runsOffBat: runs,
-      isBoundary,
-      extras: extras || { type: null, runs: 0 },
-      isLegalDelivery: !(extras && (extras.type === "WD" || extras.type === "NB")),
-      isWicket,
+      runsOffBat: batRuns,
+      isBoundary: boundary,
+      extras: extraType ? { type: extraType, runs: extraRuns } : { type: null, runs: 0 },
+      isLegalDelivery: !(extraType === "WD" || extraType === "NB"),
+      isWicket: wicketTaken,
       wicket: wicketDetails || { type: null, dismissedPlayerId: null, fielderId: null }
     });
 
     await ballEvent.save();
 
     // Update match score
-    let totalRuns = runs + (extras ? extras.runs : 0);
+    let totalRuns = batRuns + extraRuns;
     inningsScore.runs += totalRuns;
     
     if (extras) {
-      inningsScore.extras += extras.runs;
+      inningsScore.extras += extraRuns;
     }
     
     if (ballEvent.isLegalDelivery) {
       inningsScore.legalBalls += 1;
     }
     
-    if (isWicket) {
+    if (wicketTaken) {
       inningsScore.wickets += 1;
     }
 
     // Strike rotation logic
     let shouldRotate = false;
-    if (runs % 2 !== 0) shouldRotate = !shouldRotate;
+    if (batRuns % 2 !== 0) shouldRotate = !shouldRotate;
     if (ballEvent.isLegalDelivery && (inningsScore.legalBalls % 6 === 0)) {
       // Over completed, rotate strike
       shouldRotate = !shouldRotate;
@@ -231,23 +365,7 @@ exports.scoreBall = async (req, res) => {
       try {
         const already = await CompletedMatch.findOne({ sourceMatchId: match._id });
         if (!already) {
-          await CompletedMatch.create({
-            sourceMatchId: match._id,
-            tournamentId: match.tournamentId,
-            matchName: match.matchName,
-            sport: match.sport,
-            format: match.format,
-            overs: match.overs,
-            venueSnapshot: match.venue || "",
-            scheduledAt: match.scheduledAt,
-            startedAt: match.createdAt,
-            teamA: snapshotTeam(match.teamA),
-            teamB: snapshotTeam(match.teamB),
-            toss: match.toss,
-            winner: match.winner,
-            resultText: match.resultText,
-            completedAt: new Date(),
-          });
+           await archiveCompletedMatch(match);
           emitToRoom(req, "global", "match:completed", match);
         }
       } catch (archiveErr) {
@@ -273,7 +391,21 @@ exports.undoLastBall = async (req, res) => {
     const lastBall = await BallEvent.findOne({ matchId: match._id }).sort({ sequenceNumber: -1 });
     if (!lastBall) return res.status(400).json({ success: false, error: "No balls to undo" });
 
-    // Reverse the effects of the last ball
+    if (!lastBall.previousState || !lastBall.previousScore) {
+      return res.status(400).json({ success: false, error: "This ball cannot be safely undone" });
+    }
+
+    // Restore the exact pre-ball snapshot, including innings transitions.
+    match.state = lastBall.previousState;
+    match.score = lastBall.previousScore;
+    match.target = lastBall.previousTarget;
+    match.winner = lastBall.previousWinner;
+    match.resultText = lastBall.previousResultText;
+
+    await CompletedMatch.deleteOne({ sourceMatchId: match._id });
+    /*
+    // Reverse the effects of the last ball (legacy fallback kept below for
+    // old records created before snapshots were introduced).
     const currentInningsIndex = lastBall.innings === 1 ? "firstInnings" : "secondInnings";
     const inningsScore = match.score[currentInningsIndex];
 
@@ -297,6 +429,7 @@ exports.undoLastBall = async (req, res) => {
     match.state.nonStrikerId = lastBall.nonStrikerId;
     match.state.bowlerId = lastBall.bowlerId;
 
+    */
     await lastBall.deleteOne();
     await match.save();
 
@@ -338,26 +471,9 @@ exports.completeMatch = async (req, res) => {
       }
     }
 
-    // Create CompletedMatch snapshot
-    const completedMatch = new CompletedMatch({
-      sourceMatchId: match._id,
-      tournamentId: match.tournamentId,
-      matchName: match.matchName,
-      sport: match.sport,
-      format: match.format,
-      overs: match.overs,
-      venueSnapshot: match.venue || "",
-      scheduledAt: match.scheduledAt,
-      startedAt: match.createdAt,
-      teamA: snapshotTeam(match.teamA),
-      teamB: snapshotTeam(match.teamB),
-      toss: match.toss,
-      winner,
-      resultText,
-      completedAt: new Date()
-    });
-
-    await completedMatch.save();
+    match.winner = winner;
+    match.resultText = resultText;
+    const completedMatch = await archiveCompletedMatch(match);
 
     // Optionally delete from LiveMatch, or just leave it there and UI filters it
     // Let's delete it so the 'active' collection doesn't grow huge

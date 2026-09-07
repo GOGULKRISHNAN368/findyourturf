@@ -37,6 +37,7 @@ function teamLabel(team, fallback) {
 
 /* ----- LIVE ----- */
 function LiveMatchCard({ match }) {
+  const navigate = useNavigate();
   const innings = match?.state?.currentInnings === 2 ? 2 : 1;
   const battingIsA = match?.state?.battingTeamId !== "Team B";
 
@@ -80,7 +81,7 @@ function LiveMatchCard({ match }) {
   };
 
   return (
-    <div className="lm-card">
+    <button className="lm-card" onClick={() => navigate(`/live/${match._id}`)} aria-label={`Open live score for ${match.matchName}`}>
       <div className="lm-card-top">
         <span className="lm-live-dot">● LIVE</span>
         <span className="lm-format">{match.format || "Cricket"}</span>
@@ -104,14 +105,15 @@ function LiveMatchCard({ match }) {
         )}
         <span className="lm-result-line">{line}</span>
       </div>
-    </div>
+    </button>
   );
 }
 
 /* ----- UPCOMING ----- */
 function UpcomingMatchCard({ match }) {
+  const navigate = useNavigate();
   return (
-    <div className="lm-card">
+    <button className="lm-card" onClick={() => navigate(`/live/${match._id}`)} aria-label={`Open match details for ${match.matchName}`}>
       <div className="lm-card-top">
         <span className="lm-upcoming-tag">UPCOMING</span>
         <span className="lm-format">{match.format || "Cricket"}</span>
@@ -134,12 +136,13 @@ function UpcomingMatchCard({ match }) {
           <span />
         )}
       </div>
-    </div>
+    </button>
   );
 }
 
 /* ----- RESULTS ----- */
 function ResultMatchCard({ match }) {
+  const navigate = useNavigate();
   const a =
     match.teamA?.nameSnapshot ||
     match.teamA?.name ||
@@ -152,7 +155,7 @@ function ResultMatchCard({ match }) {
     "Team B";
 
   return (
-    <div className="lm-card">
+    <button className="lm-card" onClick={() => navigate(`/live/${match._id}`)} aria-label={`Open result for ${match.matchName}`}>
       <div className="lm-card-top">
         <span className="lm-done-tag">COMPLETED</span>
         <span className="lm-format">{match.format || "Cricket"}</span>
@@ -172,7 +175,7 @@ function ResultMatchCard({ match }) {
             ? "Match tied"
             : "Result announced")}
       </div>
-    </div>
+    </button>
   );
 }
 

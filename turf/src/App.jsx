@@ -35,6 +35,7 @@ import Checkout from "./pages/Checkout";
 import UserLiveMatches from "./pages/UserLiveMatches";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
+import PublicMatchScorecard from "./pages/PublicMatchScorecard";
 import BottomNav from "./components/BottomNav";
 import { getNotificationsSeenAt } from "./services/profile";
 
@@ -742,6 +743,7 @@ function App() {
       <Route path="/turfs/:id" element={<TurfDetails />} />
       <Route path="/turfs/:id/checkout" element={<Checkout />} />
       <Route path="/live" element={<UserLiveMatches />} />
+      <Route path="/live/:id" element={<PublicMatchScorecard />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/profile" element={<Profile />} />
     </Routes>

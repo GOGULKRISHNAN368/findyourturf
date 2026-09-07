@@ -120,3 +120,8 @@ export async function getMatchResults() {
   const data = await request("/api/live-matches/results");
   return data.matches || [];
 }
+
+export async function getMatchScorecard(matchId) {
+  const data = await request(`/api/live-matches/${matchId}`);
+  return data.match || null;
+}
