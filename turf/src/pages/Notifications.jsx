@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, Trophy, PlayCircle, CalendarDays } from "lucide-react";
+import { ArrowLeft, Bell, Trophy, PlayCircle, CalendarDays, Radio, CheckCircle, ChevronRight } from "lucide-react";
 import { getEvents, getMatchResults, getLiveMatches } from "../services/api";
 import { markNotificationsSeen } from "../services/profile";
+import Navbar from "../components/Navbar";
+import EmptyState from "../components/EmptyState";
 
 function timeAgo(value) {
   if (!value) return "";
@@ -40,10 +42,10 @@ export default function Notifications() {
         feed.push({
           id: `live-${m._id}`,
           icon: "live",
-          title: `${m.matchName || "A match"} is live now`,
-          body: "Tap to follow the live score.",
+          title: `${m.matchName || "A cricket match"} is live now`,
+          body: "Tap to follow real-time live scores & commentary.",
           at: m.updatedAt || m.createdAt,
-          to: "/live",
+          to: `/live/${m._id}`,
         });
       });
 
@@ -51,8 +53,8 @@ export default function Notifications() {
         feed.push({
           id: `event-${e._id}`,
           icon: "trophy",
-          title: `New tournament: ${e.eventName || "Tournament"}`,
-          body: `${e.location || "Venue TBA"} • ${
+          title: `New Tournament: ${e.eventName || "Tournament"}`,
+          body: `${e.location || "Coimbatore"} • ${
             e.eventDate
               ? new Date(e.eventDate).toLocaleDateString("en-IN", {
                   day: "2-digit",
@@ -69,10 +71,10 @@ export default function Notifications() {
         feed.push({
           id: `result-${m._id}`,
           icon: "result",
-          title: `Result: ${m.matchName || "Match"}`,
-          body: m.resultText || (m.winner ? `${m.winner} won` : "Match completed"),
+          title: `Match Result: ${m.matchName || "Match"}`,
+          body: m.resultText || (m.winner ? `${m.winner} won the match` : "Match completed"),
           at: m.completedAt || m.updatedAt,
-          to: "/live",
+          to: `/live/${m._id}`,
         });
       });
 
@@ -90,52 +92,72 @@ export default function Notifications() {
 
   const iconFor = (kind) => {
     if (kind === "trophy") return <Trophy size={18} />;
-    if (kind === "live" || kind === "result") return <PlayCircle size={18} />;
+    if (kind === "live") return <Radio size={18} />;
+    if (kind === "result") return <PlayCircle size={18} />;
     return <CalendarDays size={18} />;
   };
 
   return (
-    <div className="mobile-app-container">
-      <header className="book-turf-header">
-        <button className="icon-btn" onClick={() => navigate(-1)}>
-          <ArrowLeft size={24} />
-        </button>
-        <div className="bt-header-title">
-          <h1>Notifications</h1>
-        </div>
-        <div style={{ width: 44 }} />
-      </header>
+    <div className="fyt-app-shell">
+      <Navbar />
 
-      <div className="home-scroll-area" style={{ padding: 16, paddingBottom: 40 }}>
-        {loading ? (
-          <div className="status-box">Loading...</div>
-        ) : items.length === 0 ? (
-          <div className="lm-empty">
-            <Bell size={44} />
-            <h3>You're all caught up</h3>
-            <p>Tournament and live-match updates will show up here.</p>
+      <main className="fyt-main-content" style={{ paddingBottom: 60 }}>
+        <div className="fyt-container" style={{ maxWidth: 760 }}>
+          {/* Top navigation */}
+          <div className="fyt-td-nav-bar">
+            <button className="fyt-back-btn" onClick={() => navigate(-1)} aria-label="Go Back">
+              <ArrowLeft size={18} />
+              <span>Back</span>
+            </button>
+            <h2 className="fyt-checkout-header-title">Notifications &amp; Activity</h2>
           </div>
-        ) : (
-          <div className="notif-list">
-            {items.map((n) => (
-              <button
-                key={n.id}
-                className="notif-item"
-                onClick={() => navigate(n.to)}
-              >
-                <div className={`notif-icon notif-${n.icon}`}>
-                  {iconFor(n.icon)}
-                </div>
-                <div className="notif-text">
-                  <strong>{n.title}</strong>
-                  <span>{n.body}</span>
-                  <em>{timeAgo(n.at)}</em>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+
+          {loading ? (
+            <div className="fyt-card" style={{ padding: 40, textAlign: "center" }}>
+              <div className="fyt-loading-spinner" />
+              <p style={{ marginTop: 14, color: "var(--text-secondary)" }}>Loading notifications...</p>
+            </div>
+          ) : items.length === 0 ? (
+            <EmptyState
+              type="bookings"
+              title="You're all caught up!"
+              message="New tournament announcements, live matches, and match results will appear here."
+              actionLabel="Explore Turfs"
+              onAction={() => navigate("/turfs")}
+            />
+          ) : (
+            <div className="fyt-notif-feed">
+              {items.map((n) => (
+                <article
+                  key={n.id}
+                  className="fyt-card fyt-notif-item-card"
+                  onClick={() => navigate(n.to)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(n.to);
+                    }
+                  }}
+                >
+                  <div className={`fyt-notif-icon-circle is-${n.icon}`}>
+                    {iconFor(n.icon)}
+                  </div>
+                  <div className="fyt-notif-body">
+                    <div className="fyt-notif-title-row">
+                      <strong className="fyt-notif-title">{n.title}</strong>
+                      <span className="fyt-notif-time">{timeAgo(n.at)}</span>
+                    </div>
+                    <p className="fyt-notif-desc">{n.body}</p>
+                  </div>
+                  <ChevronRight size={18} className="fyt-notif-chevron" />
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

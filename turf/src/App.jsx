@@ -6,43 +6,48 @@ import {
   useParams
 } from "react-router-dom";
 import {
-  Bell,
-  User,
   Trophy,
-  Calendar,
   PlayCircle,
   ChevronRight,
   MapPin,
   Search,
   ArrowRight,
-  Heart,
-  Star,
   Users,
   ArrowLeft,
-  Share2,
   CalendarDays,
-  Clock
+  Clock,
+  Sparkles,
+  ShieldCheck,
+  ExternalLink,
+  Flame,
+  Lock,
 } from "lucide-react";
 
 import "./App.css";
-import { getEvent, getEvents, getTournament, getTurfs } from "./services/api";
+import { getEvent, getEvents, getTournament } from "./services/api";
 import { socket } from "./services/socket";
+import { getEventImage } from "./utils/sportsImages";
+
+// Components
+import Navbar from "./components/Navbar";
+import BottomNav from "./components/BottomNav";
+import SportCategoryCards from "./components/SportCategoryCards";
+import { EventCardSkeleton } from "./components/SkeletonLoader";
+import EmptyState from "./components/EmptyState";
+import LockedFeatureModal from "./components/LockedFeatureModal";
 
 // Pages
-import BookTurf from "./pages/BookTurf";
-import TurfDetails from "./pages/TurfDetails";
-import Checkout from "./pages/Checkout";
 import UserLiveMatches from "./pages/UserLiveMatches";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import PublicMatchScorecard from "./pages/PublicMatchScorecard";
-import BottomNav from "./components/BottomNav";
-import { getNotificationsSeenAt } from "./services/profile";
+import TournamentsPage from "./pages/TournamentsPage";
 
 // Banners
 import banner1 from "./assets/banners/promo_tournaments_1788516995082.jpg";
-import banner2 from "./assets/banners/promo_book_turf_1788516919639.jpg";
-import banner3 from "./assets/banners/promo_find_players_1788516932200.jpg";
+
+const REGISTRATION_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLScxnTEoxYDsNd24k4q-mniTvw3c9gpMUzwbNRoiTaqebZk4ig/viewform";
 
 function useEvents() {
   const [events, setEvents] = useState([]);
@@ -57,7 +62,7 @@ function useEvents() {
       setEvents(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Unable to load events.");
+      setError(err.message || "Unable to load tournaments.");
     } finally {
       setLoading(false);
     }
@@ -106,343 +111,457 @@ function useEvents() {
   };
 }
 
-function MobileHeader() {
-  const navigate = useNavigate();
-  const [showBadge, setShowBadge] = useState(false);
+function HeroSection() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [lockedFeature, setLockedFeature] = useState("");
 
-  useEffect(() => {
-    // Show the unread dot until the user opens the notifications screen once.
-    setShowBadge(!getNotificationsSeenAt());
-  }, []);
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setLockedFeature("Book Turf");
+  };
 
   return (
-    <header className="app-header">
-      <div className="header-logo-container">
-        <div className="header-f-icon">F</div>
-        <div className="header-text-group">
-          <div className="header-brand">FindYour<span>Turf</span></div>
-          <div className="header-tagline">Play • Book • Compete • Connect</div>
+    <section className="fyt-hero-section">
+      <img className="fyt-mobile-hero-image" src={banner1} alt="" aria-hidden="true" />
+      <div className="fyt-container">
+        <div className="fyt-hero-grid">
+          {/* Left Content */}
+          <div className="fyt-hero-text">
+            <p className="fyt-greeting">Good evening.</p>
+            <div className="fyt-hero-pill">
+              <Flame size={14} className="fyt-flame-icon" />
+              <span>Coimbatore&apos;s #1 Sports Turf Network</span>
+            </div>
+
+            <h1 className="fyt-hero-heading">
+              Where are we playing <span>tonight?</span>
+            </h1>
+
+            <p className="fyt-hero-subheading">
+              Discover upcoming tournaments, follow live scores, and find your next favorite sport to play.
+            </p>
+
+            {/* Prominent Search Bar */}
+            <form onSubmit={handleSearchSubmit} className="fyt-hero-search-form">
+              <div className="fyt-hero-search-box">
+                <div className="fyt-hero-loc-badge">
+                  <MapPin size={16} />
+                  <span>Coimbatore</span>
+                </div>
+                <div className="fyt-hero-search-input-wrap">
+                  <Search size={18} className="fyt-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search arenas coming soon..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <button type="submit" className="fyt-hero-search-btn">
+                  <span>Coming Soon</span>
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            </form>
+
+            {/* Quick Stats Badges */}
+            <div className="fyt-hero-stats">
+              <div className="fyt-stat-item">
+                <strong>10+</strong>
+                <span>Verified Turfs</span>
+              </div>
+              <div className="fyt-stat-divider" />
+              <div className="fyt-stat-item">
+                <strong>100%</strong>
+                <span>Instant Slots</span>
+              </div>
+              <div className="fyt-stat-divider" />
+              <div className="fyt-stat-item">
+                <strong>4.8 ★</strong>
+                <span>Player Rating</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Visual Image Card */}
+          <div className="fyt-hero-visual">
+            <div className="fyt-hero-img-card">
+              <img
+                src="https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=900&auto=format&fit=crop"
+                alt="Sports Turf"
+                className="fyt-hero-main-img"
+              />
+              <div className="fyt-hero-img-gradient" />
+              
+              <div className="fyt-hero-floating-badge">
+                <div className="fyt-hfb-icon">⚽</div>
+                <div>
+                  <strong>Live Booking Open</strong>
+                  <span>Peelamedu &amp; Saravanampatti</span>
+                </div>
+              </div>
+
+              <div className="fyt-hero-floating-badge top-right">
+                <div className="fyt-hfb-icon">🏏</div>
+                <div>
+                  <strong>Box Cricket Ready</strong>
+                  <span>Floodlights Enabled</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="header-right">
-        <button
-          className="notification-btn"
-          aria-label="Notifications"
-          onClick={() => navigate("/notifications")}
-        >
-          <Bell size={22} color="#0E1224" />
-          {showBadge && <div className="notification-badge" />}
-        </button>
-        <button
-          className="profile-avatar-circle"
-          aria-label="Profile"
-          onClick={() => navigate("/profile")}
-        >
-          <User size={24} />
-        </button>
-      </div>
-    </header>
-  );
-}
-
-function LocationSearch() {
-  return (
-    <div className="location-search-row">
-      <div className="loc-selector">
-        <MapPin size={18} color="#0E1224" />
-        <span className="loc-selector-text">Coimbatore</span>
-      </div>
-      <div className="search-input-box">
-        <Search size={20} color="#9297A8" />
-        <input type="text" placeholder="Search turfs, tournaments, players..." />
-      </div>
-    </div>
+      {lockedFeature && (
+        <LockedFeatureModal feature={lockedFeature} onClose={() => setLockedFeature("")} />
+      )}
+    </section>
   );
 }
 
 function QuickActions() {
   const navigate = useNavigate();
-  
+  const [lockedFeature, setLockedFeature] = useState("");
+  const quickAccess = [
+    { label: "Tournaments", Icon: Trophy, active: true, onClick: () => navigate("/tournaments") },
+    { label: "Live Scores", Icon: PlayCircle, active: true, onClick: () => navigate("/live") },
+    { label: "Book Turf", Icon: CalendarDays },
+    { label: "Find Players", Icon: Users },
+    { label: "Auto Teams", Icon: Sparkles },
+    { label: "Team Chat", Icon: PlayCircle },
+    { label: "Student", Icon: Sparkles },
+    { label: "Corporate", Icon: Users },
+  ];
+
   return (
-    <div className="qa-container">
-      <button className="qa-card purple-bg" onClick={() => navigate("/events")}>
-        <Trophy size={28} className="qa-icon-top" />
-        <Trophy size={90} className="qa-bg-icon" />
-        <div className="qa-title">Explore<br/>Events</div>
-        <div className="qa-arrow-btn"><ArrowRight size={16} /></div>
-      </button>
-      <button className="qa-card teal-bg" onClick={() => navigate("/turfs")}>
-        <Calendar size={28} className="qa-icon-top" />
-        <Calendar size={90} className="qa-bg-icon" />
-        <div className="qa-title">Book<br/>Turf</div>
-        <div className="qa-arrow-btn"><ArrowRight size={16} /></div>
-      </button>
-      <button className="qa-card coral-bg" onClick={() => navigate("/live")}>
-        <PlayCircle size={28} className="qa-icon-top" />
-        <PlayCircle size={90} className="qa-bg-icon" />
-        <div className="qa-title">See Live<br/>Matches</div>
-        <div className="qa-arrow-btn"><ArrowRight size={16} /></div>
-      </button>
-    </div>
+    <section className="fyt-qa-section">
+      <div className="fyt-container">
+        <div className="fyt-section-header-row fyt-quick-access-heading">
+          <div>
+            <h2 className="fyt-section-title">Quick access</h2>
+            <p>Everything the app does, one tap away.</p>
+          </div>
+        </div>
+        <div className="fyt-quick-access-grid" aria-label="Quick access">
+          {quickAccess.map(({ label, Icon, active, onClick }) => (
+            <button
+              key={label}
+              className={`fyt-quick-access-card ${active ? "is-active" : "is-locked"}`}
+              onClick={onClick || (() => setLockedFeature(label))}
+            >
+              <span className="fyt-quick-access-icon"><Icon size={20} /></span>
+              <span>{label}</span>
+              {!active && <small><Lock size={10} /> Upcoming</small>}
+            </button>
+          ))}
+        </div>
+      </div>
+      {lockedFeature && (
+        <LockedFeatureModal feature={lockedFeature} onClose={() => setLockedFeature("")} />
+      )}
+    </section>
   );
 }
 
-function PromotionalSlider() {
+function FeaturedTournamentAd() {
+  const { events, loading } = useEvents();
   const [currentSlide, setCurrentSlide] = useState(0);
-  const slides = [
-    {
-      image: banner1,
-      eyebrow: "TOURNAMENTS • CRICKET • FOOTBALL",
-      headline: <>See all the<br/><span>tournaments</span></>,
-      description: "Discover upcoming cricket and football tournaments near you."
-    },
-    {
-      image: banner2,
-      eyebrow: "BOOK TURF • ONLINE • EASY SLOTS",
-      headline: <>Book your<br/><span>turf online</span></>,
-      description: "Choose your time slot and reserve your game instantly."
-    },
-    {
-      image: banner3,
-      eyebrow: "PLAY TOGETHER • CONNECT • TEAM UP",
-      headline: <>Find the<br/><span>partner to play</span></>,
-      description: "Connect with nearby players and build your team fast."
-    }
-  ];
+  const tournament = events.find((event) => {
+    const name = (event.eventName || "").toLowerCase();
+    return name.includes("one day") && name.includes("champion");
+  }) || events[0];
+  const slides = tournament
+    ? [0, 1, 2].map((index) => ({
+        image: getEventImage(tournament, index),
+        eyebrow: `${tournament.sport || "SPORT"} • ONE DAY CHAMPIONSHIP`,
+        headline: tournament.eventName,
+        description: `${formatDate(tournament.eventDate)} • ${tournament.location || "Coimbatore"}`,
+      }))
+    : [];
 
   useEffect(() => {
+    if (slides.length < 2) return undefined;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 4500);
+    }, 5000);
     return () => clearInterval(timer);
   }, [slides.length]);
 
+  if (loading || !tournament) return null;
+
   return (
-    <div className="promo-banner">
-      <img src={slides[currentSlide].image} alt="Promotion" className="promo-bg-img" />
-      <div className="promo-overlay-new">
-        <div className="promo-eyebrow-new">{slides[currentSlide].eyebrow}</div>
-        <div className="promo-headline-new">{slides[currentSlide].headline}</div>
-        <div className="promo-desc-new">{slides[currentSlide].description}</div>
-      </div>
-      <div className="promo-dots">
-        {slides.map((_, index) => (
-          <div key={index} className={`promo-dot-new ${index === currentSlide ? "active" : ""}`} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const BottomNavigation = BottomNav;
-
-function Home() {
-  const navigate = useNavigate();
-  return (
-    <div className="mobile-app-container">
-      <MobileHeader />
-      <LocationSearch />
-
-      <div className="home-scroll-area" style={{ paddingBottom: 100 }}>
-        <QuickActions />
-        
-        <PromotionalSlider />
-
-        <section className="section-container">
-          <div className="section-header-row">
-            <h2>Upcoming Tournaments</h2>
-            <span
-              className="section-view-all"
-              style={{ cursor: 'pointer' }}
-              onClick={() => navigate("/events")}
-            >
-              View All <ChevronRight size={16} />
-            </span>
+    <section className="fyt-featured-tournament-ad">
+      <div className="fyt-container">
+        <div className="fyt-promo-slider fyt-featured-ad-slider">
+          <img
+            src={slides[currentSlide].image}
+            alt={tournament.eventName}
+            className="fyt-promo-bg"
+          />
+          <div className="fyt-promo-scrim" />
+          <div className="fyt-promo-content">
+            <span className="fyt-promo-eyebrow">{slides[currentSlide].eyebrow}</span>
+            <h3 className="fyt-promo-headline">{slides[currentSlide].headline}</h3>
+            <p className="fyt-promo-desc">{slides[currentSlide].description}</p>
           </div>
-          <EventGrid limit={4} />
-        </section>
-
-        <section className="section-container">
-          <div className="section-header-row">
-            <h2>Nearby Turfs</h2>
-            <span
-              className="section-view-all"
-              style={{ cursor: 'pointer' }}
-              onClick={() => navigate("/turfs")}
-            >
-              View All <ChevronRight size={16} />
-            </span>
+          <div className="fyt-promo-pagination">
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                className={`fyt-promo-dot ${index === currentSlide ? "active" : ""}`}
+                onClick={() => setCurrentSlide(index)}
+                aria-label={`Slide ${index + 1}`}
+              />
+            ))}
           </div>
-          <NearbyTurfs />
-        </section>
+        </div>
       </div>
-
-      <BottomNavigation />
-    </div>
+    </section>
   );
 }
 
-function EventGrid({ limit }) {
-  const { events, loading, error, loadEvents } = useEvents();
-
-  if (loading) return <div className="status-box">Loading events...</div>;
-  if (error) return <div className="status-box"><p>{error}</p><button className="btn-primary" onClick={loadEvents}>Try Again</button></div>;
-
-  const visibleEvents = limit ? events.slice(0, limit) : events;
-
-  if (visibleEvents.length === 0) return <div className="status-box"><h3>No events</h3></div>;
-
-  return (
-    <div className="horiz-scroll-list">
-      {visibleEvents.map((event) => (
-        <EventCard key={event._id} event={event} />
-      ))}
-    </div>
-  );
-}
-
-function EventCard({ event }) {
+function EventCard({ event, index = 0 }) {
   const navigate = useNavigate();
+  const imageUrl = getEventImage(event, index);
 
-  const isNightRiders = event.eventName === 'night riders';
-  const displayTitle = isNightRiders ? 'One Day Cricket Turf Tournament' : (event.eventName || 'One Day Cricket Turf Tournament');
-  const displayLocation = isNightRiders ? 'Coimbatore' : (event.location || 'Coimbatore');
-  const displayDate = isNightRiders ? '12 Sept 2026' : (event.eventDate ? formatDate(event.eventDate) : '12 Sept 2026');
-  const displayImage = isNightRiders ? '/cricket-turf.jpg' : (event.eventImage || (event.sport === 'Football' ? "https://images.unsplash.com/photo-1518605368461-1ee18eb1e79f?w=600&q=80" : "/cricket-turf.jpg"));
+  const displayTitle = event.eventName || "Cricket Turf Tournament";
+  const displayLocation = event.location || "Coimbatore";
+  const displayDate = event.eventDate ? formatDate(event.eventDate) : "12 Sept 2026";
 
   return (
-    <article className="tourney-h-card" onClick={() => navigate(`/events/${event._id}`)}>
-      <div className="th-img-box">
-        <img 
-          src={displayImage} 
-          alt={displayTitle} 
-        />
+    <article
+      className="fyt-event-card"
+      onClick={() => navigate(`/tournaments/${event._id}`)}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/tournaments/${event._id}`);
+        }
+      }}
+    >
+      <div className="fyt-ec-img-box">
+        <img src={imageUrl} alt={displayTitle} loading="lazy" />
+        <div className="fyt-ec-gradient-scrim" />
+        <div className="fyt-ec-top-badges">
+          <span className="fyt-ec-sport-badge">
+            {event.sport === "Football" ? "⚽ Football" : event.sport === "Badminton" ? "🏸 Badminton" : "🏏 Cricket"}
+          </span>
+          <span className="fyt-tsc-locked-status-badge fyt-tsc-active-status">
+            <ShieldCheck size={11} /> <span>{event.status || "AVAILABLE"}</span>
+          </span>
+        </div>
+        {event.firstPrize > 0 && (
+          <span className="fyt-ec-prize-badge">
+            <Trophy size={12} /> 1st ₹{event.firstPrize}
+          </span>
+        )}
       </div>
-      <div className="th-content">
-        <div className="th-meta-row">
-          <Calendar size={12} color="#7047FF" /> {displayDate}
+
+      <div className="fyt-ec-content">
+        <div className="fyt-ec-date-row">
+          <CalendarDays size={13} className="fyt-date-icon" />
+          <span>{displayDate}</span>
         </div>
-        <h3 className="th-title">{displayTitle}</h3>
-        <div className="th-meta-row" style={{marginBottom: 8}}>
-          <MapPin size={12} /> {displayLocation}
+
+        <h3 className="fyt-ec-title" title={displayTitle}>
+          {displayTitle}
+        </h3>
+
+        <div className="fyt-ec-meta-row">
+          <div className="fyt-ec-meta-item">
+            <MapPin size={13} /> <span>{displayLocation}</span>
+          </div>
+          <div className="fyt-ec-meta-item">
+            <Users size={13} /> <span>{event.maxTeams || 16} Teams</span>
+          </div>
         </div>
-        <div className="th-meta-row">
-          <Users size={12} /> {event.maxTeams || 16} Teams
+
+        <div className="fyt-ec-footer">
+          <span className="fyt-ec-fee">
+            {event.entryFee ? `Entry: ₹${event.entryFee}` : "Free Registration"}
+          </span>
+          <div className="fyt-ec-arrow-btn">
+            <button
+              type="button"
+              className="fyt-inline-register-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(REGISTRATION_FORM_URL, "_blank", "noopener,noreferrer");
+              }}
+            >
+              Register
+            </button>
+            <ArrowRight size={14} />
+          </div>
         </div>
-        <div className="th-arrow-btn"><ArrowRight size={14} /></div>
       </div>
     </article>
   );
 }
 
-// "Nearby" for this launch = turfs around Peelamedu / Coimbatore,
-// and we intentionally do not surface Berkley Sports Center.
-const NEARBY_AREAS = ["peelamedu", "coimbatore"];
-const NEARBY_EXCLUDE = ["berkley"];
+function LockedSections() {
+  const [lockedFeature, setLockedFeature] = useState("");
+  const sections = [
+    { title: "My Bookings", detail: "Booking feature coming soon", icon: CalendarDays },
+    { title: "Your Zone", detail: "Student & Corporate zones coming soon", icon: Users },
+    { title: "Book Add-ons", detail: "Photography, coaching & equipment soon", icon: Sparkles },
+    { title: "Rewards", detail: "Earn rewards and unlock perks soon", icon: Trophy },
+    { title: "Community", detail: "Connect with players soon", icon: Users },
+  ];
 
-function filterNearbyTurfs(turfs) {
-  const matched = turfs.filter((t) => {
-    const loc = `${t.location || ""} ${t.name || ""}`.toLowerCase();
-    const inArea = NEARBY_AREAS.some((a) => loc.includes(a));
-    const excluded = NEARBY_EXCLUDE.some((x) =>
-      (t.name || "").toLowerCase().includes(x)
-    );
-    return inArea && !excluded;
-  });
-  // Until the Coimbatore turfs are added in admin, fall back to the full
-  // list (minus excluded) so the section is never empty.
-  if (matched.length > 0) return matched;
-  return turfs.filter(
-    (t) => !NEARBY_EXCLUDE.some((x) => (t.name || "").toLowerCase().includes(x))
+  return (
+    <section className="fyt-section fyt-locked-sections">
+      <div className="fyt-container">
+        <div className="fyt-section-header-row">
+          <div>
+            <span className="fyt-section-kicker">MORE FROM FIND YOUR TURF</span>
+            <h2 className="fyt-section-title">Coming Soon</h2>
+          </div>
+        </div>
+        <div className="fyt-locked-sections-grid">
+          {sections.map(({ title, detail, icon: Icon }) => (
+            <button
+              key={title}
+              className="fyt-locked-section-card"
+              onClick={() => setLockedFeature(title)}
+            >
+              <span className="fyt-locked-section-icon"><Icon size={20} /></span>
+              <span className="fyt-locked-section-copy">
+                <strong>{title}</strong>
+                <small><Lock size={11} /> Coming Soon</small>
+                <em>{detail}</em>
+              </span>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </div>
+      {lockedFeature && (
+        <LockedFeatureModal feature={lockedFeature} onClose={() => setLockedFeature("")} />
+      )}
+    </section>
   );
 }
 
-function NearbyTurfs() {
-  const [turfs, setTurfs] = useState([]);
+function UpcomingTournamentsSection() {
+  const { events, loading } = useEvents();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    getTurfs().then(data => setTurfs(data || [])).catch(err => console.error(err));
-  }, []);
-
-  const nearby = filterNearbyTurfs(turfs);
-
-  if (nearby.length === 0) return null;
+  const featuredEvents = events;
 
   return (
-    <div className="horiz-scroll-list">
-      {nearby.map(turf => (
-        <article key={turf._id} className="turf-h-card" onClick={() => navigate(`/turfs/${turf._id}`)}>
-          <div className="turf-h-img-box">
-            <img src="https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=400&auto=format&fit=crop" alt={turf.name} />
-            <div className="turf-h-heart"><Heart size={16} /></div>
-            <div className="turf-h-rating"><Star size={12} fill="#fff" /> 4.8 (120)</div>
+    <section className="fyt-section fyt-tournaments-home-section">
+      <div className="fyt-container">
+        <div className="fyt-section-header-row">
+          <div>
+            <span className="fyt-section-kicker">ADMIN-PUBLISHED EVENTS</span>
+            <h2 className="fyt-section-title">Upcoming Tournaments</h2>
           </div>
-          <div className="turf-h-content">
-            <h3 className="turf-h-title">{turf.name}</h3>
-            <div className="turf-h-loc"><MapPin size={12} /> {turf.location}</div>
-            <div className="turf-h-bottom">
-              <div className="turf-h-sport">
-                {turf.sportType === 'Football' ? '⚽' : '🏏'} {turf.sportType} • 5v5
-              </div>
-              <div className="turf-h-price">
-                <span>From</span>
-                <strong>₹{turf.pricePerHour}/hr</strong>
+          <button className="fyt-btn-view-all" onClick={() => navigate("/tournaments")}>
+            <span>View All</span>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="fyt-grid-3">
+            {[1, 2, 3].map((n) => (
+              <EventCardSkeleton key={n} />
+            ))}
+          </div>
+        ) : featuredEvents.length === 0 ? (
+          <EmptyState
+            type="events"
+            title="No tournaments scheduled"
+            message="The one-day champion tournament will appear here when it is published by admin."
+          />
+        ) : (
+          <div className="fyt-grid-3">
+            {featuredEvents.map((event, idx) => (
+              <EventCard key={event._id || idx} event={event} index={idx} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Home() {
+  return (
+    <div className="fyt-app-shell">
+      <Navbar />
+
+      <main className="fyt-main-content" style={{ paddingBottom: 100 }}>
+        {/* 1. Hero Discovery Area */}
+        <HeroSection />
+
+        {/* 2. Admin-published one-day championship promotion */}
+        <FeaturedTournamentAd />
+
+        {/* 3. Quick Action Cards */}
+        <QuickActions />
+
+        {/* 4. Admin-published one-day championship */}
+        <UpcomingTournamentsSection />
+
+        {/* 6. Sport Categories Explorer */}
+        <section className="fyt-section">
+          <div className="fyt-container">
+            <div className="fyt-section-header-row">
+              <div>
+                <span className="fyt-section-kicker">DISCOVER BY SPORT</span>
+                <h2 className="fyt-section-title">Explore Sport Categories</h2>
               </div>
             </div>
+            <SportCategoryCards />
           </div>
-        </article>
-      ))}
+        </section>
+
+        {/* 6. Locked product areas */}
+        <LockedSections />
+      </main>
+
+      <BottomNav />
     </div>
   );
 }
 
-function EventsPage() {
+function LockedFeaturePage() {
+  const [showModal, setShowModal] = useState(true);
+
   return (
-    <div className="mobile-app-container">
-      <MobileHeader />
-
-      <div className="home-scroll-area">
-        <div className="section-header" style={{marginTop: 16}}>
-          <h2>All Tournaments</h2>
+    <div className="fyt-app-shell">
+      <Navbar />
+      <main className="fyt-main-content" style={{ paddingBottom: 110 }}>
+        <div className="fyt-container fyt-locked-page">
+          <div className="fyt-locked-page-icon"><Lock size={26} /></div>
+          <span className="fyt-section-kicker">FEATURE STATUS</span>
+          <h1>Book Turf is coming soon</h1>
+          <p>We are preparing verified venues and easy slot booking for you.</p>
+          <button className="fyt-btn-primary" onClick={() => setShowModal(true)}>
+            <Lock size={15} /> Coming Soon
+          </button>
         </div>
-        <EventGrid />
-      </div>
-
-      <BottomNavigation />
+      </main>
+      <BottomNav />
+      {showModal && (
+        <LockedFeatureModal feature="Book Turf" onClose={() => setShowModal(false)} />
+      )}
     </div>
   );
 }
-
-function isSameEvent(tournament, eventId) {
-  if (!tournament?.event) {
-    return false;
-  }
-
-  const eventValue = tournament.event;
-  const tournamentEventId =
-    typeof eventValue === "object" ? eventValue._id : eventValue;
-
-  return String(tournamentEventId) === String(eventId);
-}
-
-const GOOGLE_FORM_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLScMYbYIePNN-jBfKGrxUYieYqHzFFJMdNCIJAvakRza2HU71A/viewform";
 
 function TournamentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [event, setEvent] = useState(null);
-  const [tournament, setTournament] = useState({
-    teams: [],
-    matches: [],
-    winner1: null,
-    winner2: null,
-  });
+  const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState('Overview');
+  const [activeTab, setActiveTab] = useState("Overview");
 
   useEffect(() => {
     let mounted = true;
@@ -454,25 +573,15 @@ function TournamentDetails() {
 
         const [eventData, tournamentData] = await Promise.all([
           getEvent(id),
-          getTournament(id),
+          getTournament(id).catch(() => null),
         ]);
 
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         setEvent(eventData);
-        setTournament(
-          tournamentData || {
-            teams: [],
-            matches: [],
-            winner1: null,
-            winner2: null,
-          }
-        );
+        setTournament(tournamentData);
       } catch (err) {
         if (mounted) {
-          setError(err.message || "Unable to load tournament.");
+          setError(err.message || "Unable to load tournament details.");
           setEvent(null);
         }
       } finally {
@@ -498,234 +607,296 @@ function TournamentDetails() {
     };
 
     const handleTournamentUpdated = (updatedTournament) => {
-      if (isSameEvent(updatedTournament, id)) {
-        setTournament(updatedTournament);
-      }
-    };
-
-    const handleLiveScoreUpdated = (payload) => {
-      const updatedTournament = payload?.tournament || payload;
-      if (isSameEvent(updatedTournament, id)) {
-        setTournament(updatedTournament);
+      const tournamentPayload = updatedTournament?.tournament || updatedTournament;
+      const tournamentEventId =
+        tournamentPayload?.event?._id || tournamentPayload?.event;
+      if (String(tournamentEventId) === String(id)) {
+        setTournament(tournamentPayload);
       }
     };
 
     socket.on("event-updated", handleEventUpdated);
     socket.on("event-deleted", handleEventDeleted);
     socket.on("tournament-updated", handleTournamentUpdated);
-    socket.on("live-score-updated", handleLiveScoreUpdated);
+    socket.on("live-score-updated", handleTournamentUpdated);
 
     return () => {
       mounted = false;
       socket.off("event-updated", handleEventUpdated);
       socket.off("event-deleted", handleEventDeleted);
       socket.off("tournament-updated", handleTournamentUpdated);
-      socket.off("live-score-updated", handleLiveScoreUpdated);
+      socket.off("live-score-updated", handleTournamentUpdated);
     };
   }, [id]);
 
   if (loading) {
     return (
-      <div className="mobile-app-container">
-        <MobileHeader />
-        <div className="status-box">Loading tournament...</div>
+      <div className="fyt-app-shell">
+        <Navbar />
+        <main className="fyt-main-content">
+          <div className="fyt-container" style={{ padding: "60px 16px", textAlign: "center" }}>
+            <div className="fyt-loading-spinner" />
+            <p style={{ marginTop: 14, color: "var(--text-secondary)" }}>Loading tournament information...</p>
+          </div>
+        </main>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="mobile-app-container">
-        <MobileHeader />
-        <div className="status-box">
-          <h3>Tournament Not Found</h3>
-          <p>{error || "This tournament is no longer available."}</p>
-          <button className="btn-primary" onClick={() => navigate("/events")}>
-            Back to Events
-          </button>
-        </div>
+      <div className="fyt-app-shell">
+        <Navbar />
+        <main className="fyt-main-content">
+          <div className="fyt-container" style={{ padding: "60px 16px", textAlign: "center" }}>
+            <h2>Tournament Not Found</h2>
+            <p style={{ color: "var(--text-secondary)", margin: "12px 0 24px" }}>
+              {error || "This tournament is no longer active."}
+            </p>
+            <button className="fyt-btn-primary" onClick={() => navigate("/tournaments")}>
+              Back to Tournaments
+            </button>
+          </div>
+        </main>
       </div>
     );
   }
 
-  const isClosed = event.registrationDeadline ? new Date(event.registrationDeadline) < new Date() : false;
-
-  const fallbackImage = event.sport === 'Football' ? "https://images.unsplash.com/photo-1518605368461-1ee18eb1e79f?w=600&q=80" : "/cricket-turf.jpg";
-  const displayImage = event.eventImage || fallbackImage;
+  const displayImage = getEventImage(event, 0);
 
   return (
-    <div className="mobile-app-container td-page-bg">
-      <div className="td-hero">
-        <img 
-          src={displayImage} 
-          alt={event.eventName || 'Tournament'} 
-          className="td-hero-img" 
-        />
-        <div className="td-hero-overlay"></div>
-        <div className="td-top-controls">
-          <button className="td-icon-btn" onClick={() => navigate(-1)}><ArrowLeft size={22} color="#fff" /></button>
-          <div style={{display:'flex', gap:10}}>
-            <button className="td-icon-btn"><Share2 size={22} color="#fff" /></button>
-            <button className="td-icon-btn"><Heart size={22} color="#fff" /></button>
+    <div className="fyt-app-shell">
+      <Navbar />
+
+      <main className="fyt-main-content" style={{ paddingBottom: 110 }}>
+        <div className="fyt-container" style={{ maxWidth: 900 }}>
+          {/* Back Navigation */}
+          <div className="fyt-td-nav-bar">
+            <button className="fyt-back-btn" onClick={() => navigate(-1)} aria-label="Go Back">
+              <ArrowLeft size={18} />
+              <span>Back</span>
+            </button>
+            <div className="fyt-pb-badge" style={{ margin: 0, background: "#ECFDF5", borderColor: "#A7F3D0", color: "#047857" }}>
+              <ShieldCheck size={12} /> <span>{event.status || "AVAILABLE NOW"}</span>
+            </div>
+          </div>
+
+          {/* Tournament Hero Card */}
+          <div className="fyt-tourney-hero-card">
+            <img src={displayImage} alt={event.eventName} className="fyt-thc-img" />
+            <div className="fyt-thc-scrim" />
+            <div className="fyt-thc-body">
+              <div className="fyt-thc-badge-row">
+                <span className="fyt-thc-sport-badge">{event.sport || "Cricket"}</span>
+                <span className="fyt-thc-status-badge fyt-tsc-active-status">
+                  <ShieldCheck size={12} /> <span>{event.status || "REGISTRATION OPEN"}</span>
+                </span>
+              </div>
+              <h1 className="fyt-thc-title">{event.eventName || "Tournament"}</h1>
+              <div className="fyt-thc-meta-row">
+                <span><MapPin size={14} /> {event.location || "Coimbatore"}</span>
+                <span>•</span>
+                <span><CalendarDays size={14} /> {event.eventDate ? formatDate(event.eventDate) : "Date TBA"}</span>
+                <span>•</span>
+                <span><Users size={14} /> {event.maxTeams || 16} Teams</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs Control */}
+          <div className="fyt-card fyt-tourney-sheet-card" style={{ marginTop: 20 }}>
+            <div className="fyt-tourney-tabs">
+              {["Overview", "Rules", "Prizes", "Venue", "Contact"].map((tab) => (
+                <button
+                  key={tab}
+                  className={`fyt-tourney-tab-btn ${activeTab === tab ? "active" : ""}`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="fyt-tourney-tab-content">
+              {activeTab === "Overview" && (
+                <>
+                  <h3 className="fyt-card-heading">Key Information</h3>
+                  <div className="fyt-info-grid-2" style={{ marginBottom: 24 }}>
+                    <div className="fyt-info-stat-box">
+                      <span className="fyt-isb-label"><Users size={14} /> Team Size</span>
+                      <strong className="fyt-isb-val">{event.teamSize || "8 Players + 1 Impact"}</strong>
+                    </div>
+
+                    <div className="fyt-info-stat-box">
+                      <span className="fyt-isb-label"><CalendarDays size={14} /> Tournament Date</span>
+                      <strong className="fyt-isb-val">{event.eventDate ? formatDate(event.eventDate) : "TBA"}</strong>
+                    </div>
+
+                    <div className="fyt-info-stat-box">
+                      <span className="fyt-isb-label"><Clock size={14} /> Registration Status</span>
+                      <strong className="fyt-isb-val" style={{ color: "#D97706" }}>
+                        {event.status || "Upcoming"}
+                      </strong>
+                    </div>
+
+                    <div className="fyt-info-stat-box">
+                      <span className="fyt-isb-label"><MapPin size={14} /> Location / Area</span>
+                      <strong className="fyt-isb-val">{event.location || "Coimbatore"}</strong>
+                    </div>
+                  </div>
+
+                  <h3 className="fyt-card-heading">Prize Pool</h3>
+                  <div className="fyt-prize-cards-row">
+                    <div className="fyt-prize-box gold">
+                      <div className="fyt-pb-label"><Trophy size={16} /> 1st Prize</div>
+                      <strong className="fyt-pb-amt">₹{event.firstPrize || 0}</strong>
+                    </div>
+
+                    <div className="fyt-prize-box silver">
+                      <div className="fyt-pb-label"><Trophy size={16} /> 2nd Prize</div>
+                      <strong className="fyt-pb-amt">₹{event.secondPrize || 0}</strong>
+                    </div>
+
+                    <div className="fyt-prize-box bronze">
+                      <div className="fyt-pb-label"><Trophy size={16} /> 3rd Prize</div>
+                      <strong className="fyt-pb-amt">₹{event.thirdPrize || 0}</strong>
+                    </div>
+                  </div>
+
+                  <h3 className="fyt-card-heading" style={{ marginTop: 24 }}>About this Tournament</h3>
+                  <p className="fyt-tourney-text">
+                    {event.description || "Exciting tournament organized for sports players across Coimbatore."}
+                  </p>
+
+                  {event.keyHighlights && (
+                    <>
+                      <h3 className="fyt-card-heading" style={{ marginTop: 20 }}>Key Highlights</h3>
+                      <p className="fyt-tourney-text">{event.keyHighlights}</p>
+                    </>
+                  )}
+
+                  {tournament?.matches?.length > 0 && (
+                    <>
+                      <h3 className="fyt-card-heading" style={{ marginTop: 24 }}>
+                        Live Tournament Scores
+                      </h3>
+                      <div className="fyt-tournament-score-list">
+                        {tournament.matches.map((match) => (
+                          <div className="fyt-tournament-score-row" key={match._id}>
+                            <div>
+                              <strong>{match.team1 || "Team A"}</strong>
+                              <span>{match.team2 || "Team B"}</span>
+                            </div>
+                            <div className="fyt-tournament-score-values">
+                              <strong>{match.team1Score ?? 0}/{match.team1Wickets ?? 0}</strong>
+                              <span>vs</span>
+                              <strong>{match.team2Score ?? 0}/{match.team2Wickets ?? 0}</strong>
+                            </div>
+                            <span className={`fyt-tournament-match-status ${String(match.status || "").toLowerCase()}`}>
+                              {match.status || "Upcoming"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {tournament.champion && (
+                        <div className="fyt-tournament-champion">
+                          <Trophy size={16} />
+                          <span>Champion: <strong>{tournament.champion}</strong></span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {activeTab === "Rules" && (
+                <div>
+                  <h3 className="fyt-card-heading">Rules &amp; Regulations</h3>
+                  <p className="fyt-tourney-text">
+                    {event.rules || "Standard tournament rules apply. Umpire / Referee decision is final."}
+                  </p>
+                </div>
+              )}
+
+              {activeTab === "Prizes" && (
+                <div>
+                  <h3 className="fyt-card-heading">
+                    Total Prize Pool: ₹{(event.firstPrize || 0) + (event.secondPrize || 0) + (event.thirdPrize || 0)}
+                  </h3>
+                  <div className="fyt-prize-cards-row" style={{ marginTop: 16 }}>
+                    <div className="fyt-prize-box gold">
+                      <div className="fyt-pb-label">🥇 1st Place</div>
+                      <strong className="fyt-pb-amt">₹{event.firstPrize || 0}</strong>
+                    </div>
+                    <div className="fyt-prize-box silver">
+                      <div className="fyt-pb-label">🥈 2nd Place</div>
+                      <strong className="fyt-pb-amt">₹{event.secondPrize || 0}</strong>
+                    </div>
+                    <div className="fyt-prize-box bronze">
+                      <div className="fyt-pb-label">🥉 3rd Place</div>
+                      <strong className="fyt-pb-amt">₹{event.thirdPrize || 0}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "Venue" && (
+                <div>
+                  <h3 className="fyt-card-heading">{event.venueName || "Tournament Venue"}</h3>
+                  <p className="fyt-tourney-text">
+                    <MapPin size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
+                    {event.location || "Coimbatore, Tamil Nadu"}
+                  </p>
+                </div>
+              )}
+
+              {activeTab === "Contact" && (
+                <div>
+                  <h3 className="fyt-card-heading">Organizer Contact Information</h3>
+                  <p className="fyt-tourney-text">
+                    For squad registration inquiries or sponsorship opportunities:<br />
+                    <strong>{event.contactPhone || "+91 98765 43210"}</strong>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Registration Notice Banner */}
+            <div className="fyt-tourney-notice-banner fyt-tourney-notice-active" style={{ marginTop: 24 }}>
+              <div className="fyt-tnb-icon">
+                <ShieldCheck size={16} />
+              </div>
+              <div className="fyt-tnb-text">
+                <strong>{event.status || "REGISTRATION OPEN"}</strong>
+                <span>Complete the official Google Form to register your team.</span>
+              </div>
+            </div>
+
+            {/* Registration CTA */}
+            <div className="fyt-tourney-reg-cta-wrap">
+              <button
+                type="button"
+                className="fyt-btn-primary fyt-btn-register"
+                onClick={() => window.open("https://docs.google.com/forms/d/e/1FAIpQLScxnTEoxYDsNd24k4q-mniTvw3c9gpMUzwbNRoiTaqebZk4ig/viewform", "_blank", "noopener,noreferrer")}
+              >
+                <ExternalLink size={16} />
+                <span>Register Now</span>
+              </button>
+            </div>
           </div>
         </div>
-        <div className="td-hero-content">
-          <div className="td-sport-badge">{event.sport}</div>
-          <h1 className="td-title">{event.eventName || 'Tournament'}</h1>
-          <div className="td-quick-info">
-            <div className="td-qi-item"><MapPin size={14} /> {event.location || 'Location TBA'}</div>
-            <div className="td-qi-sep">|</div>
-            <div className="td-qi-item"><CalendarDays size={14} /> {event.eventDate ? formatDate(event.eventDate) : 'Date TBA'}</div>
-            <div className="td-qi-sep">|</div>
-            <div className="td-qi-item"><Users size={14} /> {event.maxTeams || 16} Teams</div>
-          </div>
-        </div>
-      </div>
+      </main>
 
-      <div className="td-sheet">
-        <div className="td-tabs">
-          {['Overview', 'Rules', 'Prizes', 'Venue', 'Contact'].map(tab => (
-            <div 
-              key={tab} 
-              className={`td-tab ${activeTab === tab ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab}
-              {activeTab === tab && <div className="td-tab-indicator" />}
-            </div>
-          ))}
-        </div>
+      <BottomNav />
 
-        <div className="td-content">
-          {activeTab === 'Overview' && (
-            <>
-              <h2 className="td-section-title">Tournament Information</h2>
-              <div className="td-info-grid">
-                <div className="td-info-card">
-                  <div className="td-ic-icon"><Users size={22} /></div>
-                  <div className="td-ic-text">
-                    <small>Team Size</small>
-                    <strong>{event.teamSize || '8 Players + 1 Impact'}</strong>
-                  </div>
-                </div>
-                <div className="td-info-card">
-                  <div className="td-ic-icon"><CalendarDays size={22} /></div>
-                  <div className="td-ic-text">
-                    <small>Event Date</small>
-                    <strong>{event.eventDate ? formatDate(event.eventDate) : 'TBA'}</strong>
-                  </div>
-                </div>
-                <div className="td-info-card">
-                  <div className="td-ic-icon"><Clock size={22} /></div>
-                  <div className="td-ic-text">
-                    <small>Registration Deadline</small>
-                    <strong>{event.registrationDeadline ? formatDate(event.registrationDeadline) : 'TBA'}</strong>
-                  </div>
-                </div>
-                <div className="td-info-card">
-                  <div className="td-ic-icon"><MapPin size={22} /></div>
-                  <div className="td-ic-text">
-                    <small>Location</small>
-                    <strong>{event.location || 'TBA'}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="td-divider" />
-              
-              <h2 className="td-section-title">About Tournament</h2>
-              <div style={{fontSize: 14, color: '#5E6578', lineHeight: 1.55, marginBottom: 24, whiteSpace: 'pre-wrap'}}>
-                {event.description || 'Information about this tournament will be updated soon.'}
-              </div>
-
-              <h2 className="td-section-title">Prize Details</h2>
-              <div className="td-prize-cards">
-                <div className="td-prize-card gold">
-                  <div className="td-prize-label"><Trophy size={16} /> 1st Prize</div>
-                  <div className="td-prize-amt">₹{event.firstPrize || '0'}</div>
-                </div>
-                <div className="td-prize-card silver">
-                  <div className="td-prize-label"><Trophy size={16} color="#8A90A2" /> 2nd Prize</div>
-                  <div className="td-prize-amt">₹{event.secondPrize || '0'}</div>
-                </div>
-              </div>
-
-              <div className="td-divider" />
-
-              <h2 className="td-section-title">Key Highlights</h2>
-              <div style={{fontSize: 14, color: '#5E6578', lineHeight: 1.55, whiteSpace: 'pre-wrap'}}>
-                {event.keyHighlights || 'No key highlights available.'}
-              </div>
-            </>
-          )}
-
-          {activeTab === 'Rules' && (
-            <div style={{paddingTop: 10}}>
-              <h2 className="td-section-title">Tournament Rules</h2>
-              <div style={{fontSize: 14, color: '#5E6578', lineHeight: 1.8, whiteSpace: 'pre-wrap'}}>
-                {event.rules || 'No rules specified.'}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'Prizes' && (
-            <div style={{paddingTop: 10}}>
-              <h2 className="td-section-title">Total Prize Pool: ₹{(event.firstPrize || 0) + (event.secondPrize || 0) + (event.thirdPrize || 0)}</h2>
-              <p style={{fontSize: 14, color: '#5E6578', marginBottom: 16}}>
-                🥇 1st Prize — ₹{event.firstPrize || 0}<br/>
-                🥈 2nd Prize — ₹{event.secondPrize || 0}<br/>
-                🥉 3rd Prize — ₹{event.thirdPrize || 0}
-              </p>
-            </div>
-          )}
-
-          {activeTab === 'Venue' && (
-            <div style={{paddingTop: 10}}>
-              <h2 className="td-section-title">{event.venueName || 'Venue TBA'}</h2>
-              <p style={{fontSize: 14, color: '#5E6578'}}>
-                {event.location || 'Location TBA'}
-              </p>
-            </div>
-          )}
-
-          {activeTab === 'Contact' && (
-            <div style={{paddingTop: 10}}>
-              <h2 className="td-section-title">Organizer Contact</h2>
-              <p style={{fontSize: 14, color: '#5E6578'}}>
-                For registration and more details, contact:<br/>
-                <strong>{event.contactPhone || 'No contact provided'}</strong>
-              </p>
-            </div>
-          )}
-
-          <div style={{height: 100}} />
-        </div>
-      </div>
-
-      <div className="td-sticky-footer">
-        {isClosed ? (
-          <div className="td-btn-disabled">Registration Closed</div>
-        ) : (
-          <a href={GOOGLE_FORM_URL} target="_blank" rel="noopener noreferrer" className="td-btn-register">
-            Register Now <ArrowRight size={18} style={{marginLeft: 8}} />
-          </a>
-        )}
-      </div>
     </div>
   );
 }
 
 function formatDate(date) {
-  if (!date) {
-    return "-";
-  }
-
+  if (!date) return "-";
   const value = new Date(date);
-
-  if (Number.isNaN(value.getTime())) {
-    return "-";
-  }
-
+  if (Number.isNaN(value.getTime())) return "-";
   return value.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -737,11 +908,13 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/events" element={<EventsPage />} />
+      <Route path="/tournaments" element={<TournamentsPage />} />
+      <Route path="/tournaments/:id" element={<TournamentDetails />} />
+      <Route path="/events" element={<TournamentsPage />} />
       <Route path="/events/:id" element={<TournamentDetails />} />
-      <Route path="/turfs" element={<BookTurf />} />
-      <Route path="/turfs/:id" element={<TurfDetails />} />
-      <Route path="/turfs/:id/checkout" element={<Checkout />} />
+      <Route path="/turfs" element={<LockedFeaturePage />} />
+      <Route path="/turfs/:id" element={<LockedFeaturePage />} />
+      <Route path="/turfs/:id/checkout" element={<LockedFeaturePage />} />
       <Route path="/live" element={<UserLiveMatches />} />
       <Route path="/live/:id" element={<PublicMatchScorecard />} />
       <Route path="/notifications" element={<Notifications />} />

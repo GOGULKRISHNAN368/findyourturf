@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, PlayCircle, CalendarDays, MapPin, Trophy } from "lucide-react";
+import { PlayCircle, CalendarDays, MapPin, Trophy, Radio, ArrowRight, Clock } from "lucide-react";
 import { socket } from "../services/socket";
+import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
+import { MatchCardSkeleton } from "../components/SkeletonLoader";
+import EmptyState from "../components/EmptyState";
 import {
   getLiveMatches,
   getUpcomingMatches,
@@ -10,9 +13,9 @@ import {
 } from "../services/api";
 
 const TABS = [
-  { key: "LIVE", label: "Live" },
-  { key: "UPCOMING", label: "Upcoming" },
-  { key: "RESULTS", label: "Result" },
+  { key: "LIVE", label: "Live", icon: Radio },
+  { key: "UPCOMING", label: "Upcoming", icon: CalendarDays },
+  { key: "RESULTS", label: "Results", icon: Trophy },
 ];
 
 function oversDisplay(legalBalls = 0) {
@@ -20,9 +23,9 @@ function oversDisplay(legalBalls = 0) {
 }
 
 function formatDateTime(value) {
-  if (!value) return "Time to be announced";
+  if (!value) return "Date & Time TBA";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "Time to be announced";
+  if (Number.isNaN(d.getTime())) return "Date & Time TBA";
   return d.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -35,7 +38,7 @@ function teamLabel(team, fallback) {
   return team?.name || team?.shortName || fallback;
 }
 
-/* ----- LIVE ----- */
+/* ----- LIVE MATCH CARD ----- */
 function LiveMatchCard({ match }) {
   const navigate = useNavigate();
   const innings = match?.state?.currentInnings === 2 ? 2 : 1;
@@ -71,76 +74,107 @@ function LiveMatchCard({ match }) {
       : "Match in progress");
 
   const renderScore = (score) => {
-    if (!score) return <span className="lm-yet">Yet to bat</span>;
+    if (!score) return <span className="fyt-score-yet">Yet to bat</span>;
     return (
-      <span className="lm-score-val">
-        {score.runs || 0}/{score.wickets || 0}
-        <small> ({oversDisplay(score.legalBalls)})</small>
+      <span className="fyt-score-val">
+        <strong>{score.runs || 0}/{score.wickets || 0}</strong>
+        <small className="fyt-score-overs"> ({oversDisplay(score.legalBalls)} ov)</small>
       </span>
     );
   };
 
   return (
-    <button className="lm-card" onClick={() => navigate(`/live/${match._id}`)} aria-label={`Open live score for ${match.matchName}`}>
-      <div className="lm-card-top">
-        <span className="lm-live-dot">● LIVE</span>
-        <span className="lm-format">{match.format || "Cricket"}</span>
+    <article
+      className="fyt-match-card fyt-live-card"
+      onClick={() => navigate(`/live/${match._id}`)}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/live/${match._id}`);
+        }
+      }}
+    >
+      <div className="fyt-mc-header">
+        <div className="fyt-mc-live-pill">
+          <span className="fyt-live-pulse-dot" />
+          <span>LIVE</span>
+        </div>
+        <span className="fyt-mc-format">{match.format || "Cricket"}</span>
       </div>
-      <h4 className="lm-match-name">{match.matchName}</h4>
-      <div className="lm-team-row">
-        <span className="lm-team-name">{teamLabel(match.teamA, "Team A")}</span>
-        {renderScore(aScore)}
+
+      <h4 className="fyt-mc-title">{match.matchName}</h4>
+
+      <div className="fyt-mc-scores-box">
+        <div className="fyt-mc-team-row">
+          <span className="fyt-mc-team-name">{teamLabel(match.teamA, "Team A")}</span>
+          {renderScore(aScore)}
+        </div>
+        <div className="fyt-mc-team-row">
+          <span className="fyt-mc-team-name">{teamLabel(match.teamB, "Team B")}</span>
+          {renderScore(bScore)}
+        </div>
       </div>
-      <div className="lm-team-row">
-        <span className="lm-team-name">{teamLabel(match.teamB, "Team B")}</span>
-        {renderScore(bScore)}
-      </div>
-      <div className="lm-card-foot">
+
+      <div className="fyt-mc-footer">
         {match.venue ? (
-          <span>
-            <MapPin size={12} /> {match.venue}
+          <span className="fyt-mc-venue">
+            <MapPin size={13} /> {match.venue}
           </span>
         ) : (
           <span />
         )}
-        <span className="lm-result-line">{line}</span>
+        <span className="fyt-mc-status-line">{line}</span>
       </div>
-    </button>
+    </article>
   );
 }
 
-/* ----- UPCOMING ----- */
+/* ----- UPCOMING MATCH CARD ----- */
 function UpcomingMatchCard({ match }) {
   const navigate = useNavigate();
   return (
-    <button className="lm-card" onClick={() => navigate(`/live/${match._id}`)} aria-label={`Open match details for ${match.matchName}`}>
-      <div className="lm-card-top">
-        <span className="lm-upcoming-tag">UPCOMING</span>
-        <span className="lm-format">{match.format || "Cricket"}</span>
+    <article
+      className="fyt-match-card"
+      onClick={() => navigate(`/live/${match._id}`)}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/live/${match._id}`);
+        }
+      }}
+    >
+      <div className="fyt-mc-header">
+        <span className="fyt-mc-badge-upcoming">UPCOMING</span>
+        <span className="fyt-mc-format">{match.format || "Cricket"}</span>
       </div>
-      <h4 className="lm-match-name">{match.matchName}</h4>
-      <div className="lm-vs-row">
-        <span>{teamLabel(match.teamA, "Team A")}</span>
-        <span className="lm-vs">vs</span>
-        <span>{teamLabel(match.teamB, "Team B")}</span>
+
+      <h4 className="fyt-mc-title">{match.matchName}</h4>
+
+      <div className="fyt-mc-vs-container">
+        <span className="fyt-mc-vs-team">{teamLabel(match.teamA, "Team A")}</span>
+        <span className="fyt-mc-vs-pill">VS</span>
+        <span className="fyt-mc-vs-team">{teamLabel(match.teamB, "Team B")}</span>
       </div>
-      <div className="lm-card-foot">
-        <span>
-          <CalendarDays size={12} /> {formatDateTime(match.scheduledAt)}
+
+      <div className="fyt-mc-footer">
+        <span className="fyt-mc-time">
+          <CalendarDays size={13} /> {formatDateTime(match.scheduledAt)}
         </span>
-        {match.venue ? (
-          <span>
-            <MapPin size={12} /> {match.venue}
+        {match.venue && (
+          <span className="fyt-mc-venue">
+            <MapPin size={13} /> {match.venue}
           </span>
-        ) : (
-          <span />
         )}
       </div>
-    </button>
+    </article>
   );
 }
 
-/* ----- RESULTS ----- */
+/* ----- RESULT MATCH CARD ----- */
 function ResultMatchCard({ match }) {
   const navigate = useNavigate();
   const a =
@@ -155,27 +189,43 @@ function ResultMatchCard({ match }) {
     "Team B";
 
   return (
-    <button className="lm-card" onClick={() => navigate(`/live/${match._id}`)} aria-label={`Open result for ${match.matchName}`}>
-      <div className="lm-card-top">
-        <span className="lm-done-tag">COMPLETED</span>
-        <span className="lm-format">{match.format || "Cricket"}</span>
+    <article
+      className="fyt-match-card"
+      onClick={() => navigate(`/live/${match._id}`)}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/live/${match._id}`);
+        }
+      }}
+    >
+      <div className="fyt-mc-header">
+        <span className="fyt-mc-badge-completed">COMPLETED</span>
+        <span className="fyt-mc-format">{match.format || "Cricket"}</span>
       </div>
-      <h4 className="lm-match-name">{match.matchName}</h4>
-      <div className="lm-vs-row">
-        <span>{a}</span>
-        <span className="lm-vs">vs</span>
-        <span>{b}</span>
+
+      <h4 className="fyt-mc-title">{match.matchName}</h4>
+
+      <div className="fyt-mc-vs-container">
+        <span className="fyt-mc-vs-team">{a}</span>
+        <span className="fyt-mc-vs-pill">VS</span>
+        <span className="fyt-mc-vs-team">{b}</span>
       </div>
-      <div className="lm-result-banner">
-        <Trophy size={14} />
-        {match.resultText ||
-          (match.winner && match.winner !== "Tie"
-            ? `${match.winner} won`
-            : match.winner === "Tie"
-            ? "Match tied"
-            : "Result announced")}
+
+      <div className="fyt-mc-result-banner">
+        <Trophy size={15} />
+        <span>
+          {match.resultText ||
+            (match.winner && match.winner !== "Tie"
+              ? `${match.winner} won the match`
+              : match.winner === "Tie"
+              ? "Match ended in a tie"
+              : "Result announced")}
+        </span>
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -196,7 +246,7 @@ export default function UserLiveMatches() {
       ]);
       setData({ LIVE: live, UPCOMING: upcoming, RESULTS: results });
     } catch (err) {
-      setError(err.message || "Unable to load matches.");
+      setError(err.message || "Unable to load match scores.");
     } finally {
       setLoading(false);
     }
@@ -209,83 +259,111 @@ export default function UserLiveMatches() {
     socket.on("match:scoreUpdated", refresh);
     socket.on("new-live-match", refresh);
     socket.on("match:completed", refresh);
+    socket.on("live-score-updated", refresh);
+    socket.on("tournament-updated", refresh);
 
     return () => {
       socket.off("match:scoreUpdated", refresh);
       socket.off("new-live-match", refresh);
       socket.off("match:completed", refresh);
+      socket.off("live-score-updated", refresh);
+      socket.off("tournament-updated", refresh);
     };
   }, [loadAll]);
 
   const list = data[activeTab] || [];
 
   const emptyText = {
-    LIVE: "No matches are live right now.",
-    UPCOMING: "No upcoming matches scheduled.",
-    RESULTS: "No completed matches yet.",
+    LIVE: "No matches are live right now. Check back during tournament hours.",
+    UPCOMING: "No upcoming matches scheduled at this time.",
+    RESULTS: "No completed match results yet.",
   }[activeTab];
 
   return (
-    <div className="mobile-app-container">
-      <header className="book-turf-header">
-        <button className="icon-btn" onClick={() => navigate("/")}>
-          <ArrowLeft size={24} />
-        </button>
-        <div className="bt-header-title">
-          <h1>Live Matches</h1>
-          <div className="bt-location-meta">
-            <PlayCircle size={12} /> <span>Cricket scores &amp; fixtures</span>
+    <div className="fyt-app-shell">
+      <Navbar />
+
+      <main className="fyt-main-content" style={{ paddingBottom: 110 }}>
+        {/* Banner */}
+        <div className="fyt-page-banner">
+          <div className="fyt-container">
+            <div className="fyt-pb-content">
+              <div className="fyt-pb-badge">
+                <Radio size={14} /> <span>Real-Time Ball-by-Ball</span>
+              </div>
+              <h1 className="fyt-pb-title">Live Match Scores &amp; Fixtures</h1>
+              <p className="fyt-pb-desc">
+                Follow real-time tournament scores, upcoming fixtures, and verified match results across Coimbatore turfs.
+              </p>
+            </div>
           </div>
         </div>
-        <div style={{ width: 44 }} />
-      </header>
 
-      <div className="lm-tabs">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            className={`lm-tab ${activeTab === tab.key ? "active" : ""}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-            {activeTab === tab.key && <span className="lm-tab-underline" />}
-          </button>
-        ))}
-      </div>
+        {/* Tab Controls */}
+        <section className="fyt-lm-tabs-section">
+          <div className="fyt-container">
+            <div className="fyt-segmented-tabs">
+              {TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.key;
+                const count = (data[tab.key] || []).length;
+                return (
+                  <button
+                    key={tab.key}
+                    className={`fyt-seg-tab ${active ? "active" : ""}`}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    <Icon size={16} />
+                    <span>{tab.label}</span>
+                    {count > 0 && <span className="fyt-seg-tab-badge">{count}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
-      <div
-        className="home-scroll-area"
-        style={{ padding: "16px", paddingBottom: 110 }}
-      >
-        {loading ? (
-          <div className="status-box">Loading matches...</div>
-        ) : error ? (
-          <div className="status-box">
-            <p>{error}</p>
-            <button className="btn-primary" onClick={loadAll}>
-              Try Again
-            </button>
-          </div>
-        ) : list.length === 0 ? (
-          <div className="lm-empty">
-            <PlayCircle size={44} />
-            <h3>Nothing here yet</h3>
-            <p>{emptyText}</p>
-          </div>
-        ) : (
-          <div className="lm-list">
-            {list.map((match) =>
-              activeTab === "LIVE" ? (
-                <LiveMatchCard key={match._id} match={match} />
-              ) : activeTab === "UPCOMING" ? (
-                <UpcomingMatchCard key={match._id} match={match} />
-              ) : (
-                <ResultMatchCard key={match._id} match={match} />
-              )
+        {/* Matches List Grid */}
+        <section className="fyt-matches-grid-section">
+          <div className="fyt-container">
+            {loading ? (
+              <div className="fyt-grid-2">
+                {[1, 2, 3, 4].map((n) => (
+                  <MatchCardSkeleton key={n} />
+                ))}
+              </div>
+            ) : error ? (
+              <EmptyState
+                type="error"
+                title="Unable to load matches"
+                message={error}
+                actionLabel="Try Again"
+                onAction={loadAll}
+              />
+            ) : list.length === 0 ? (
+              <EmptyState
+                type="events"
+                title="No matches found"
+                message={emptyText}
+                actionLabel="Explore Tournaments"
+                onAction={() => navigate("/events")}
+              />
+            ) : (
+              <div className="fyt-grid-2">
+                {list.map((match) =>
+                  activeTab === "LIVE" ? (
+                    <LiveMatchCard key={match._id} match={match} />
+                  ) : activeTab === "UPCOMING" ? (
+                    <UpcomingMatchCard key={match._id} match={match} />
+                  ) : (
+                    <ResultMatchCard key={match._id} match={match} />
+                  )
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </section>
+      </main>
 
       <BottomNav />
     </div>

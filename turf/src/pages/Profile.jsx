@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   User,
   Phone,
   Mail,
@@ -9,6 +8,11 @@ import {
   MapPin,
   Pencil,
   LogOut,
+  Clock,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 import {
   getProfile,
@@ -16,7 +20,10 @@ import {
   clearProfile,
   getLocalBookings,
 } from "../services/profile";
+import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
+import EmptyState from "../components/EmptyState";
+import { SPORTS_IMAGES } from "../utils/sportsImages";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -26,8 +33,11 @@ export default function Profile() {
     () => getProfile() || { name: "", phone: "", email: "" }
   );
   const [error, setError] = useState("");
+  const [bookings, setBookings] = useState(() => getLocalBookings());
 
-  const bookings = getLocalBookings();
+  useEffect(() => {
+    setBookings(getLocalBookings());
+  }, []);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -35,11 +45,11 @@ export default function Profile() {
   const handleSave = (e) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) {
-      setError("Name and phone number are required.");
+      setError("Full name and mobile number are required.");
       return;
     }
     if (!/^\d{10}$/.test(form.phone.trim())) {
-      setError("Enter a valid 10-digit phone number.");
+      setError("Please enter a valid 10-digit mobile number.");
       return;
     }
     const saved = saveProfile({
@@ -53,161 +63,221 @@ export default function Profile() {
   };
 
   const handleSignOut = () => {
-    clearProfile();
-    setProfile(null);
-    setForm({ name: "", phone: "", email: "" });
-    setEditing(true);
+    if (window.confirm("Are you sure you want to clear your stored player profile on this device?")) {
+      clearProfile();
+      setProfile(null);
+      setForm({ name: "", phone: "", email: "" });
+      setEditing(true);
+    }
   };
 
   return (
-    <div className="mobile-app-container">
-      <header className="book-turf-header">
-        <button className="icon-btn" onClick={() => navigate("/")}>
-          <ArrowLeft size={24} />
-        </button>
-        <div className="bt-header-title">
-          <h1>My Profile</h1>
-        </div>
-        <div style={{ width: 44 }} />
-      </header>
+    <div className="fyt-app-shell">
+      <Navbar />
 
-      <div className="home-scroll-area" style={{ padding: 16, paddingBottom: 110 }}>
-        <div className="pf-hero">
-          <div className="pf-avatar">
-            <User size={34} />
-          </div>
-          <div>
-            <h2 className="pf-name">{profile?.name || "Guest player"}</h2>
-            <p className="pf-sub">
-              {profile?.phone ? `+91 ${profile.phone}` : "Add your details to book faster"}
-            </p>
-          </div>
-        </div>
-
-        {editing ? (
-          <form className="pf-form" onSubmit={handleSave}>
-            <label>Full name</label>
-            <div className="pf-input">
-              <User size={16} />
-              <input
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                placeholder="Your name"
-              />
+      <main className="fyt-main-content" style={{ paddingBottom: 110 }}>
+        <div className="fyt-container" style={{ maxWidth: 860 }}>
+          {/* Profile Hero Card */}
+          <div className="fyt-card fyt-profile-hero-card">
+            <div className="fyt-ph-left">
+              <div className="fyt-ph-avatar">
+                {profile?.name ? profile.name.charAt(0).toUpperCase() : <User size={32} />}
+              </div>
+              <div className="fyt-ph-info">
+                <div className="fyt-ph-badge">
+                  <Sparkles size={12} /> <span>Turf Player</span>
+                </div>
+                <h1 className="fyt-ph-name">{profile?.name || "Guest Player"}</h1>
+                <p className="fyt-ph-contact">
+                  {profile?.phone ? `+91 ${profile.phone}` : "Set up your player profile to book slots faster"}
+                </p>
+              </div>
             </div>
 
-            <label>Phone number</label>
-            <div className="pf-input">
-              <Phone size={16} />
-              <input
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                placeholder="10-digit mobile number"
-                inputMode="numeric"
-              />
-            </div>
-
-            <label>Email (optional)</label>
-            <div className="pf-input">
-              <Mail size={16} />
-              <input
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="you@example.com"
-              />
-            </div>
-
-            {error && <p className="pf-error">{error}</p>}
-
-            <button type="submit" className="pf-save-btn">
-              Save details
-            </button>
-            {profile && (
+            {!editing && profile && (
               <button
-                type="button"
-                className="pf-cancel-btn"
-                onClick={() => {
-                  setForm(profile);
-                  setEditing(false);
-                  setError("");
-                }}
+                className="fyt-btn-edit-profile"
+                onClick={() => setEditing(true)}
               >
-                Cancel
+                <Pencil size={15} />
+                <span>Edit Profile</span>
               </button>
             )}
-          </form>
-        ) : (
-          <div className="pf-details">
-            <div className="pf-detail-row">
-              <Phone size={16} />
-              <span>+91 {profile.phone}</span>
-            </div>
-            {profile.email && (
-              <div className="pf-detail-row">
-                <Mail size={16} />
-                <span>{profile.email}</span>
-              </div>
-            )}
-            <button className="pf-edit-btn" onClick={() => setEditing(true)}>
-              <Pencil size={14} /> Edit details
-            </button>
           </div>
-        )}
 
-        <h3 className="pf-section-title">My Bookings</h3>
-        {bookings.length === 0 ? (
-          <div className="pf-empty">
-            <Calendar size={28} />
-            <p>No bookings yet. Book a turf to see it here.</p>
-            <button className="pf-save-btn" onClick={() => navigate("/turfs")}>
-              Book a Turf
-            </button>
-          </div>
-        ) : (
-          <div className="pf-booking-list">
-            {bookings.map((b, i) => (
-              <div key={i} className="pf-booking-card">
-                <div className="pf-booking-top">
-                  <strong>{b.turfName}</strong>
-                  <span className={`pf-status pf-status-${(b.status || "").toLowerCase()}`}>
-                    {b.status || "Confirmed"}
-                  </span>
+          {/* Profile Form (if editing) or Details Summary */}
+          {editing ? (
+            <div className="fyt-card fyt-profile-form-card" style={{ marginTop: 20 }}>
+              <h3 className="fyt-card-heading">
+                {profile ? "Edit Player Details" : "Create Player Profile"}
+              </h3>
+              <form onSubmit={handleSave} className="fyt-profile-form">
+                <div className="fyt-form-group">
+                  <label>Full Name *</label>
+                  <div className="fyt-input-with-icon">
+                    <User size={16} />
+                    <input
+                      name="name"
+                      value={form.name}
+                      onChange={handleChange}
+                      placeholder="e.g. Karthik Raj"
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="pf-booking-meta">
-                  <span>
-                    <Calendar size={12} />{" "}
-                    {b.date
-                      ? new Date(b.date).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "-"}
-                  </span>
-                  <span>{b.slot}</span>
+
+                <div className="fyt-form-group">
+                  <label>Mobile Number *</label>
+                  <div className="fyt-input-with-icon">
+                    <Phone size={16} />
+                    <input
+                      name="phone"
+                      value={form.phone}
+                      onChange={handleChange}
+                      placeholder="10-digit phone number"
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
                 </div>
-                {b.turfLocation && (
-                  <div className="pf-booking-meta">
-                    <span>
-                      <MapPin size={12} /> {b.turfLocation}
-                    </span>
-                    <span>₹{b.totalAmount}</span>
+
+                <div className="fyt-form-group">
+                  <label>Email Address (Optional)</label>
+                  <div className="fyt-input-with-icon">
+                    <Mail size={16} />
+                    <input
+                      name="email"
+                      value={form.email}
+                      onChange={handleChange}
+                      placeholder="e.g. karthik@example.com"
+                    />
+                  </div>
+                </div>
+
+                {error && <div className="fyt-error-banner">{error}</div>}
+
+                <div className="fyt-form-actions-row">
+                  <button type="submit" className="fyt-btn-primary">
+                    Save Profile
+                  </button>
+                  {profile && (
+                    <button
+                      type="button"
+                      className="fyt-btn-secondary"
+                      onClick={() => {
+                        setForm(profile);
+                        setEditing(false);
+                        setError("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="fyt-card fyt-profile-details-card" style={{ marginTop: 20 }}>
+              <h3 className="fyt-card-heading">Contact Information</h3>
+              <div className="fyt-pd-grid">
+                <div className="fyt-pd-item">
+                  <span className="fyt-pd-label"><Phone size={14} /> Phone Number</span>
+                  <strong className="fyt-pd-val">+91 {profile.phone}</strong>
+                </div>
+
+                {profile.email && (
+                  <div className="fyt-pd-item">
+                    <span className="fyt-pd-label"><Mail size={14} /> Email</span>
+                    <strong className="fyt-pd-val">{profile.email}</strong>
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {profile && (
-          <button className="pf-signout" onClick={handleSignOut}>
-            <LogOut size={16} /> Clear my details
-          </button>
-        )}
-      </div>
+          {/* Bookings History Section */}
+          <section className="fyt-my-bookings-section" style={{ marginTop: 28 }}>
+            <div className="fyt-section-header-row">
+              <h2 className="fyt-section-title">My Turf Bookings</h2>
+              <span className="fyt-bookings-count">
+                {bookings.length} {bookings.length === 1 ? "Booking" : "Bookings"}
+              </span>
+            </div>
+
+            {bookings.length === 0 ? (
+              <EmptyState
+                type="bookings"
+                title="No turf bookings yet"
+                message="You haven't reserved any turf slots yet. Explore venues in Coimbatore and book your first game!"
+                actionLabel="Explore & Book Turfs"
+                onAction={() => navigate("/turfs")}
+              />
+            ) : (
+              <div className="fyt-bookings-list">
+                {bookings.map((booking, idx) => (
+                  <div key={idx} className="fyt-card fyt-booking-history-card">
+                    <div className="fyt-bhc-header">
+                      <div className="fyt-bhc-title-group">
+                        <h3 className="fyt-bhc-turf-name">{booking.turfName}</h3>
+                        {booking.turfLocation && (
+                          <div className="fyt-bhc-loc">
+                            <MapPin size={13} /> <span>{booking.turfLocation}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <span className={`fyt-status-badge ${booking.status?.toLowerCase() || "confirmed"}`}>
+                        <CheckCircle2 size={12} /> {booking.status || "Confirmed"}
+                      </span>
+                    </div>
+
+                    <div className="fyt-bhc-divider" />
+
+                    <div className="fyt-bhc-meta-row">
+                      <div className="fyt-bhc-meta-item">
+                        <Calendar size={14} className="fyt-meta-icon" />
+                        <span>
+                          {booking.date
+                            ? new Date(booking.date).toLocaleDateString("en-IN", {
+                                weekday: "short",
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "-"}
+                        </span>
+                      </div>
+
+                      <div className="fyt-bhc-meta-item">
+                        <Clock size={14} className="fyt-meta-icon" />
+                        <span>
+                          {booking.endSlot
+                            ? `${booking.slot} – ${booking.endSlot}`
+                            : booking.slot}
+                        </span>
+                      </div>
+
+                      <div className="fyt-bhc-amount">
+                        <span>Paid:</span>
+                        <strong>₹{booking.totalAmount}</strong>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Sign Out / Reset Button */}
+          {profile && (
+            <div style={{ marginTop: 32, textAlign: "center" }}>
+              <button className="fyt-btn-signout" onClick={handleSignOut}>
+                <LogOut size={16} /> <span>Clear Stored Details</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
 
       <BottomNav />
     </div>

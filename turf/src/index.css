@@ -1,42 +1,104 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --primary-purple: #6C3DF4;
-  --dark-purple: #4C1FD1;
-  --purple-hover: #5930DA;
-  --light-purple: #EEE9FF;
-  --very-light-purple: #F7F5FF;
-  
-  --text-heading: #101426;
-  --text-body: #555B6E;
-  --text-secondary: #8A8FA3;
-  
-  --bg-main: #FFFFFF;
-  --bg-secondary: #F8F8FC;
-  
-  --border-color: #E8E8F0;
-  
+  /* Brand Athletic Emerald & Indigo Colors */
+  --primary: #4058F5;
+  --primary-hover: #3048E8;
+  --primary-dark: #263AC2;
+  --primary-light: #EEF1FF;
+  --primary-subtle: #F5F6FF;
+  --primary-border: #C8D0FF;
+  --primary-glow: rgba(64, 88, 245, 0.16);
+
+  --accent-indigo: #4058F5;
+  --accent-indigo-hover: #3048E8;
+  --accent-indigo-light: #EEF1FF;
+  --accent-amber: #F59E0B;
+  --accent-amber-light: #FEF3C7;
+  --accent-rose: #F43F5E;
+  --accent-rose-light: #FFE4E6;
+
+  /* Neutrals & Backgrounds (Strict Light Theme) */
+  --bg-page: #F8F7F3;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-subtle: #F1F0EC;
+  --bg-input: #F8F7F3;
+  --bg-input-focus: #FFFFFF;
+
+  /* Text & Typography */
+  --text-primary: #0B1020;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+  --text-inverted: #FFFFFF;
+
+  /* Borders & Dividers */
+  --border-subtle: #ECEBE7;
+  --border-default: #E5E3DE;
+  --border-strong: #D8D6D0;
+  --border-focus: #4058F5;
+
+  /* Status Colors */
   --color-live: #EF4444;
-  --color-success: #22C55E;
+  --color-live-bg: #FEF2F2;
+  --color-live-border: #FECACA;
+
+  --color-success: #10B981;
+  --color-success-bg: #ECFDF5;
+
+  --color-warning: #F59E0B;
+  --color-warning-bg: #FFFBEB;
+
+  --color-info: #3B82F6;
+  --color-info-bg: #EFF6FF;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 8px 22px -12px rgba(11, 16, 32, 0.22), 0 1px 3px rgba(11, 16, 32, 0.04);
+  --shadow-md: 0 12px 28px -14px rgba(11, 16, 32, 0.24), 0 2px 8px rgba(11, 16, 32, 0.05);
+  --shadow-lg: 0 12px 30px -4px rgba(15, 23, 42, 0.1), 0 4px 12px -2px rgba(15, 23, 42, 0.05);
+  --shadow-hover: 0 16px 34px -8px rgba(64, 88, 245, 0.18), 0 6px 14px -2px rgba(11, 16, 32, 0.08);
+
+  /* Border Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-* {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-main);
-  color: var(--text-body);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 a {
   text-decoration: none;
   color: inherit;
+  transition: color var(--transition-fast);
 }
 
 button {
@@ -45,4 +107,37 @@ button {
   background: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Custom Scrollbar for horizontal chips */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }
