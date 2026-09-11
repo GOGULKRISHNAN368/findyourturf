@@ -262,6 +262,29 @@ export default function Profile() {
                         <strong>₹{booking.totalAmount}</strong>
                       </div>
                     </div>
+
+                    {(booking.players > 1 || booking.perPersonAmount) && (
+                      <div
+                        className="fyt-bhc-split-row"
+                        style={{
+                          marginTop: 10,
+                          paddingTop: 10,
+                          borderTop: "1px dashed var(--border-color, #e5e7eb)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "0.85rem",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        <span>
+                          Split {booking.players || 1} ways
+                          {booking.floodlightAmount ? " · incl. floodlight" : ""}
+                        </span>
+                        <strong style={{ color: "var(--primary)" }}>
+                          ₹{booking.perPersonAmount} / person
+                        </strong>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

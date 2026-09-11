@@ -43,8 +43,19 @@ async function request(path, options = {}) {
       }
 
       if (response.status === 404) {
-        const error = new Error(data.message || "Resource not found (404)");
+        // Our controllers return JSON ({ success:false, error/message });
+        // Express's own "no such route" 404 has no JSON body -> the backend is
+        // running an older build that doesn't have this endpoint yet.
+        const knownRoute = Boolean(
+          data && (data.success === false || data.error || data.message)
+        );
+        const error = new Error(
+          data.error ||
+            data.message ||
+            "This action isn't available on the server. Restart or redeploy the backend to load the latest changes."
+        );
         error.status = 404;
+        error.routeMissing = !knownRoute;
         error.data = data;
         throw error;
       }
@@ -182,6 +193,58 @@ export async function createLiveMatch(match) {
   });
 }
 
+// --- Live scoring console -------------------------------------------------
+export async function getLiveMatchDetails(matchId) {
+  return request(`/api/live-matches/admin/${matchId}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function updateLiveMatchState(matchId, payload) {
+  return request(`/api/live-matches/${matchId}/state`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function scoreLiveBall(matchId, payload) {
+  return request(`/api/live-matches/${matchId}/score`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function undoLiveBall(matchId) {
+  return request(`/api/live-matches/${matchId}/undo`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+export async function completeLiveMatch(matchId) {
+  return request(`/api/live-matches/${matchId}/complete`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+export async function updateLiveMatch(matchId, payload) {
+  return request(`/api/live-matches/${matchId}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteLiveMatch(matchId) {
+  return request(`/api/live-matches/${matchId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
 export async function updateMatch(eventId, matchId, match) {
   return request(`/api/tournaments/${eventId}/match/${matchId}`, {
     method: "PUT",
@@ -279,4 +342,64 @@ export async function getUsers() {
 export async function getTurfs() {
   const data = await request("/api/turfs");
   return Array.isArray(data) ? data : [];
+}
+
+export async function createTurf(payload) {
+  return request("/api/turfs", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateTurf(turfId, payload) {
+  return request(`/api/turfs/${turfId}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteTurf(turfId, { force = false } = {}) {
+  return request(`/api/turfs/${turfId}${force ? "?force=1" : ""}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
+// ==========================================
+// ADD-ONS API
+// ==========================================
+
+export async function getAddons() {
+  const data = await request("/api/addons/all", { headers: authHeaders() });
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getAddonBookings() {
+  const data = await request("/api/addons/bookings", { headers: authHeaders() });
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createAddon(payload) {
+  return request("/api/addons", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAddon(id, payload) {
+  return request(`/api/addons/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAddon(id, { force = false } = {}) {
+  return request(`/api/addons/${id}${force ? "?force=1" : ""}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
 }

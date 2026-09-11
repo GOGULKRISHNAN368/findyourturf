@@ -1,12 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, MapPin, SlidersHorizontal, ArrowLeft, X, Sparkles, Lock } from "lucide-react";
+import { Search, SlidersHorizontal, ArrowLeft, X, Sparkles } from "lucide-react";
 import { getTurfs } from "../services/api";
-import { LOCKED_DEMO_TURFS } from "../utils/sportsImages";
 import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
 import TurfCard from "../components/TurfCard";
-import LockedTurfModal from "../components/LockedTurfModal";
 import { TurfCardSkeleton } from "../components/SkeletonLoader";
 import EmptyState from "../components/EmptyState";
 
@@ -14,26 +12,27 @@ const SPORTS = [
   { id: "ALL", name: "All Sports", icon: "🏆" },
   { id: "Football", name: "Football", icon: "⚽" },
   { id: "Cricket", name: "Cricket", icon: "🏏" },
-  { id: "Badminton", name: "Badminton", icon: "🏸" },
-  { id: "Basketball", name: "Basketball", icon: "🏀" },
-  { id: "Tennis", name: "Tennis", icon: "🎾" },
+  { id: "Box Cricket", name: "Box Cricket", icon: "🏏" },
+  { id: "Pickleball", name: "Pickleball", icon: "🎾" },
 ];
+
+function turfSports(t) {
+  const list = Array.isArray(t.sports) && t.sports.length ? t.sports : t.sportType ? [t.sportType] : [];
+  return list.map((s) => String(s).toLowerCase());
+}
 
 export default function BookTurf() {
   const navigate = useNavigate();
   const location = useLocation();
   const [turfs, setTurfs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedLockedTurf, setSelectedLockedTurf] = useState(null);
 
-  // Read query params if arriving from a category click e.g. /turfs?sport=Football
   const searchParams = new URLSearchParams(location.search);
   const initialSport = searchParams.get("sport") || "ALL";
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedSport, setSelectedSport] = useState(initialSport);
   const [sortBy, setSortBy] = useState("recommended");
 
-  // Generate 7-day date chips (BookMyShow-style MON 07, TUE 08)
   const dateChips = useMemo(() => {
     const chips = [];
     const today = new Date();
@@ -57,9 +56,12 @@ export default function BookTurf() {
       try {
         setLoading(true);
         const data = await getTurfs();
-        setTurfs(Array.isArray(data) ? data : []);
+        const list = (Array.isArray(data) ? data : []).filter(
+          (t) => t.status !== "Inactive" && t.available !== false
+        );
+        setTurfs(list);
       } catch (err) {
-        console.error("Failed to load real turfs:", err);
+        console.error("Failed to load turfs:", err);
       } finally {
         setLoading(false);
       }
@@ -67,46 +69,32 @@ export default function BookTurf() {
     loadTurfs();
   }, []);
 
-  // Filter real turfs
-  const filteredRealTurfs = useMemo(() => {
+  const filteredTurfs = useMemo(() => {
     let list = [...turfs];
+
     if (selectedSport && selectedSport !== "ALL") {
-      list = list.filter((t) => (t.sportType || "").toLowerCase() === selectedSport.toLowerCase());
+      const want = selectedSport.toLowerCase();
+      list = list.filter((t) => turfSports(t).some((s) => s.includes(want) || want.includes(s)));
     }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
         (t) =>
           (t.name || "").toLowerCase().includes(q) ||
           (t.location || "").toLowerCase().includes(q) ||
-          (t.sportType || "").toLowerCase().includes(q)
+          (t.address || "").toLowerCase().includes(q) ||
+          turfSports(t).some((s) => s.includes(q))
       );
     }
+
     if (sortBy === "price_asc") {
-      list.sort((a, b) => (a.pricePerHour || 0) - (b.pricePerHour || 0));
+      list.sort((a, b) => (a.pricePerHour ?? Infinity) - (b.pricePerHour ?? Infinity));
     } else if (sortBy === "price_desc") {
-      list.sort((a, b) => (b.pricePerHour || 0) - (a.pricePerHour || 0));
+      list.sort((a, b) => (b.pricePerHour ?? -1) - (a.pricePerHour ?? -1));
     }
     return list;
   }, [turfs, selectedSport, searchQuery, sortBy]);
-
-  // Filter demo locked turfs
-  const filteredDemoTurfs = useMemo(() => {
-    let list = [...LOCKED_DEMO_TURFS];
-    if (selectedSport && selectedSport !== "ALL") {
-      list = list.filter((t) => (t.sportType || "").toLowerCase() === selectedSport.toLowerCase());
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (t) =>
-          (t.name || "").toLowerCase().includes(q) ||
-          (t.location || "").toLowerCase().includes(q) ||
-          (t.sportType || "").toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [selectedSport, searchQuery]);
 
   const handleResetFilters = () => {
     setSearchQuery("");
@@ -119,7 +107,6 @@ export default function BookTurf() {
       <Navbar />
 
       <main className="fyt-main-content" style={{ paddingBottom: 110 }}>
-        {/* Top Header & Search Area */}
         <div className="fyt-page-banner">
           <div className="fyt-container">
             <div className="fyt-td-nav-bar" style={{ padding: 0, marginBottom: 12 }}>
@@ -128,34 +115,29 @@ export default function BookTurf() {
                 <span>Back</span>
               </button>
               <div className="fyt-pb-badge" style={{ margin: 0 }}>
-                <Sparkles size={14} /> <span>Instant Slot Booking</span>
+                <Sparkles size={14} /> <span>Coimbatore Turfs</span>
               </div>
             </div>
 
             <div className="fyt-pb-content">
               <h1 className="fyt-pb-title">Book Your Turf</h1>
               <p className="fyt-pb-desc">
-                Choose your turf, pick your preferred date and time slot, and get ready to play.
+                Real turf venues across Coimbatore. Pick a date and time slot to book.
               </p>
             </div>
 
-            {/* Search Input Bar */}
             <div className="fyt-search-bar-wrap">
               <div className="fyt-search-box">
                 <Search size={20} className="fyt-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search turf, area (e.g. Peelamedu, Gandhipuram), or sport..."
+                  placeholder="Search turf or area (Singanallur, Peelamedu, Ganapathy)…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="fyt-search-input"
                 />
                 {searchQuery && (
-                  <button
-                    className="fyt-search-clear"
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Clear search"
-                  >
+                  <button className="fyt-search-clear" onClick={() => setSearchQuery("")} aria-label="Clear search">
                     <X size={16} />
                   </button>
                 )}
@@ -164,10 +146,8 @@ export default function BookTurf() {
           </div>
         </div>
 
-        {/* Filter Controls Row */}
         <section className="fyt-filters-section">
           <div className="fyt-container">
-            {/* Sport Category Filter Chips */}
             <div className="fyt-filter-group">
               <span className="fyt-filter-group-label">Sport:</span>
               <div className="fyt-chips-scroll">
@@ -184,7 +164,6 @@ export default function BookTurf() {
               </div>
             </div>
 
-            {/* BookMyShow-style Date Selection Chips */}
             <div className="fyt-filter-group" style={{ marginTop: 12 }}>
               <span className="fyt-filter-group-label">Date:</span>
               <div className="fyt-chips-scroll">
@@ -202,11 +181,10 @@ export default function BookTurf() {
               </div>
             </div>
 
-            {/* Sub-filters (Sort & Counter) */}
             <div className="fyt-subfilter-bar">
               <div className="fyt-results-counter">
-                Showing <strong>{filteredRealTurfs.length + filteredDemoTurfs.length}</strong> arenas
-                {selectedSport !== "ALL" && ` in ${selectedSport}`}
+                Showing <strong>{filteredTurfs.length}</strong> turf{filteredTurfs.length === 1 ? "" : "s"}
+                {selectedSport !== "ALL" && ` for ${selectedSport}`}
               </div>
 
               <div className="fyt-sort-dropdown-wrap">
@@ -226,13 +204,12 @@ export default function BookTurf() {
           </div>
         </section>
 
-        {/* 1. Real Available Turfs Section */}
         <section className="fyt-turfs-grid-section" style={{ paddingBottom: 24 }}>
           <div className="fyt-container">
             <div className="fyt-section-header-row" style={{ marginBottom: 16 }}>
               <div>
-                <span className="fyt-section-kicker">INSTANT RESERVATION</span>
-                <h2 className="fyt-section-title">Available Turfs for Online Booking</h2>
+                <span className="fyt-section-kicker">COIMBATORE</span>
+                <h2 className="fyt-section-title">Turf Venues</h2>
               </div>
             </div>
 
@@ -242,60 +219,24 @@ export default function BookTurf() {
                   <TurfCardSkeleton key={n} />
                 ))}
               </div>
-            ) : filteredRealTurfs.length === 0 ? (
+            ) : filteredTurfs.length === 0 ? (
               <EmptyState
                 type="turfs"
-                title="No live turfs found"
-                message="Try changing your search query or sport filter to see available arenas."
+                title="No turfs found"
+                message="Try changing your search or sport filter."
                 actionLabel="Reset Filters"
                 onAction={handleResetFilters}
               />
             ) : (
               <div className="fyt-grid-3">
-                {filteredRealTurfs.map((turf, idx) => (
+                {filteredTurfs.map((turf, idx) => (
                   <TurfCard key={turf._id} turf={turf} index={idx} />
                 ))}
               </div>
             )}
           </div>
         </section>
-
-        {/* 2. 4–5 Locked Demo Turfs (Coming Soon) */}
-        {filteredDemoTurfs.length > 0 && (
-          <section className="fyt-section fyt-demo-turfs-section">
-            <div className="fyt-container">
-              <div className="fyt-section-header-row" style={{ marginBottom: 16 }}>
-                <div>
-                  <span className="fyt-section-kicker" style={{ color: "var(--accent-indigo)" }}>
-                    <Lock size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                    DEMO ARENAS (COMING SOON)
-                  </span>
-                  <h2 className="fyt-section-title">Partner Arenas Onboarding Soon</h2>
-                </div>
-              </div>
-
-              <div className="fyt-grid-3">
-                {filteredDemoTurfs.map((demoTurf, idx) => (
-                  <TurfCard
-                    key={demoTurf._id}
-                    turf={demoTurf}
-                    index={idx + 4}
-                    onLockedClick={(turf) => setSelectedLockedTurf(turf)}
-                  />
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
       </main>
-
-      {/* Friendly Bottom Sheet for Locked Demo Turfs */}
-      {selectedLockedTurf && (
-        <LockedTurfModal
-          turf={selectedLockedTurf}
-          onClose={() => setSelectedLockedTurf(null)}
-        />
-      )}
 
       <BottomNav />
     </div>

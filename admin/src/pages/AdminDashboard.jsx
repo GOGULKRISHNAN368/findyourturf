@@ -7,6 +7,8 @@ import EmptyState from "../components/common/EmptyState";
 import { SkeletonCard, SkeletonTable } from "../components/common/Skeleton";
 import Modal from "../components/common/Modal";
 import LiveMatches from "./LiveMatches";
+import TurfManagement from "./TurfManagement";
+import AddonsManagement from "./AddonsManagement";
 import {
   IconCalendar,
   IconTrophy,
@@ -602,6 +604,10 @@ export default function AdminDashboard() {
           ? "Events Management"
           : activeTab === "live-matches"
           ? "Live Matches Console"
+          : activeTab === "turfs"
+          ? "Turf Management"
+          : activeTab === "addons"
+          ? "Add-ons Management"
           : "System Settings"
       }
       breadcrumb={`Overview / ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
@@ -719,6 +725,17 @@ export default function AdminDashboard() {
           ------------------------------------------------------------------- */}
       {activeTab === "live-matches" && (
         <LiveMatches />
+      )}
+
+      {/* -------------------------------------------------------------------
+          TAB: TURF MANAGEMENT
+          ------------------------------------------------------------------- */}
+      {activeTab === "turfs" && (
+        <TurfManagement />
+      )}
+
+      {activeTab === "addons" && (
+        <AddonsManagement />
       )}
 
       {/* -------------------------------------------------------------------

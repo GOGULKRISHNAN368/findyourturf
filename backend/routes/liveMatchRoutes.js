@@ -11,6 +11,8 @@ router.post("/:id/state", protect, liveMatchController.updateMatchState);
 router.post("/:id/score", protect, liveMatchController.scoreBall);
 router.post("/:id/undo", protect, liveMatchController.undoLastBall);
 router.post("/:id/complete", protect, liveMatchController.completeMatch);
+router.put("/:id", protect, liveMatchController.updateMatch);
+router.delete("/:id", protect, liveMatchController.deleteMatch);
 
 // User/Public routes
 router.get("/live", liveMatchController.getLiveMatches);

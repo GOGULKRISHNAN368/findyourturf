@@ -60,6 +60,14 @@ const completedMatchSchema = new mongoose.Schema(
         wickets: { type: Number, default: 0 },
         oversDisplay: { type: String, default: "0.0" },
         extras: { type: Number, default: 0 },
+        fallOfWickets: [
+          {
+            wicketNumber: { type: Number },
+            runs: { type: Number, default: 0 },
+            oversDisplay: { type: String, default: "0.0" },
+            playerOutName: { type: String, default: "" },
+          }
+        ],
         batting: [
           {
             playerName: { type: String },
@@ -86,6 +94,14 @@ const completedMatchSchema = new mongoose.Schema(
         wickets: { type: Number, default: 0 },
         oversDisplay: { type: String, default: "0.0" },
         extras: { type: Number, default: 0 },
+        fallOfWickets: [
+          {
+            wicketNumber: { type: Number },
+            runs: { type: Number, default: 0 },
+            oversDisplay: { type: String, default: "0.0" },
+            playerOutName: { type: String, default: "" },
+          }
+        ],
         batting: [
           {
             playerName: { type: String },

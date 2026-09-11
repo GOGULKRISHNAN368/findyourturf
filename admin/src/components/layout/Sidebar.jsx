@@ -3,6 +3,8 @@ import {
   IconDashboard,
   IconCalendar,
   IconLive,
+  IconMapPin,
+  IconSparkles,
   IconX,
   IconShield,
   IconCollapse,
@@ -27,6 +29,8 @@ export default function Sidebar({
   const navItems = [
     { id: "overview", label: "Dashboard", icon: IconDashboard },
     { id: "events", label: "Events", icon: IconCalendar, count: counts.events },
+    { id: "turfs", label: "Turfs", icon: IconMapPin, count: counts.turfs },
+    { id: "addons", label: "Add-ons", icon: IconSparkles },
     { id: "live-matches", label: "Live Matches", icon: IconLive },
   ];
 

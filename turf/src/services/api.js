@@ -97,6 +97,70 @@ export async function getBookedSlots(turfId, date) {
   }
 }
 
+export async function getTurfWeather(turfId, date) {
+  try {
+    const data = await request(
+      `/api/turfs/${turfId}/weather${date ? `?date=${date}` : ""}`
+    );
+    return data;
+  } catch {
+    return { available: false };
+  }
+}
+
+// Authoritative price + split breakdown from the server (add-ons included).
+export async function getBookingQuote({ turf, players, useFloodlight, equipment, addons, date, startTime }) {
+  return request("/api/bookings/quote", {
+    method: "POST",
+    body: JSON.stringify({ turf, players, useFloodlight, equipment, addons, date, startTime }),
+  });
+}
+
+// --- Add-ons ---
+export async function getAddons({ type, sport, turfSports } = {}) {
+  const p = new URLSearchParams();
+  if (type) p.set("type", type);
+  if (sport) p.set("sport", sport);
+  if (turfSports && turfSports.length) p.set("turfSports", turfSports.join(","));
+  try {
+    const data = await request(`/api/addons${p.toString() ? `?${p}` : ""}`);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function checkAddonAvailability({ serviceId, date, startTime, quantity = 1 }) {
+  try {
+    const p = new URLSearchParams({ serviceId, date, startTime, quantity: String(quantity) });
+    return await request(`/api/addons/availability?${p}`);
+  } catch (err) {
+    return { available: false, reason: err.message };
+  }
+}
+
+export async function getAddonAvailabilityBatch({ date, startTime }) {
+  try {
+    const p = new URLSearchParams({ date, startTime });
+    return await request(`/api/addons/availability-batch?${p}`);
+  } catch {
+    return {};
+  }
+}
+
+export async function getMyBookings({ email, phone } = {}) {
+  const params = new URLSearchParams();
+  if (email) params.set("email", email);
+  if (phone) params.set("phone", phone);
+  if (![...params].length) return [];
+  try {
+    const data = await request(`/api/bookings/mine?${params.toString()}`);
+    return data.bookings || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function createBooking(bookingData) {
   const data = await request("/api/bookings", {
     method: "POST",
@@ -123,5 +187,10 @@ export async function getMatchResults() {
 
 export async function getMatchScorecard(matchId) {
   const data = await request(`/api/live-matches/${matchId}`);
-  return data.match || null;
+  // `type` is "LIVE" or "COMPLETED"; ballEvents is present for live matches.
+  return {
+    type: data.type || (data.match ? "LIVE" : null),
+    match: data.match || null,
+    ballEvents: data.ballEvents || [],
+  };
 }

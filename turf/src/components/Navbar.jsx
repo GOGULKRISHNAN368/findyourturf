@@ -20,7 +20,7 @@ export default function Navbar() {
 
   const navLinks = [
     { path: "/", label: "Home" },
-    { path: "/turfs", label: "Book Turf", icon: Calendar, locked: true },
+    { path: "/turfs", label: "Book Turf", icon: Calendar },
     { path: "/tournaments", label: "Tournaments", icon: Trophy, altPath: "/events" },
     { path: "/live", label: "Live Scores", icon: PlayCircle },
   ];

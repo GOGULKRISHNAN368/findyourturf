@@ -83,6 +83,28 @@ function LiveMatchCard({ match }) {
     );
   };
 
+  // Current striker / bowler line (present once the player-aware scoring is used).
+  const battingInns =
+    innings === 2 ? match?.score?.secondInnings : match?.score?.firstInnings;
+  const battingSlot = match?.state?.battingTeamId;
+  const bowlingSlot = match?.state?.bowlingTeamId;
+  const battingRoster =
+    (battingSlot === "Team A" ? match?.teamA : match?.teamB)?.players || [];
+  const bowlingRoster =
+    (bowlingSlot === "Team A" ? match?.teamA : match?.teamB)?.players || [];
+  const strikerRow = (battingInns?.batting || []).find(
+    (b) => String(b.playerId) === String(match?.state?.strikerId)
+  );
+  const bowlerRow = (battingInns?.bowling || []).find(
+    (b) => String(b.playerId) === String(match?.state?.bowlerId)
+  );
+  const strikerName =
+    strikerRow?.name ||
+    battingRoster.find((p) => String(p.playerId) === String(match?.state?.strikerId))?.name;
+  const bowlerName =
+    bowlerRow?.name ||
+    bowlingRoster.find((p) => String(p.playerId) === String(match?.state?.bowlerId))?.name;
+
   return (
     <article
       className="fyt-match-card fyt-live-card"
@@ -116,6 +138,23 @@ function LiveMatchCard({ match }) {
           {renderScore(bScore)}
         </div>
       </div>
+
+      {(strikerName || bowlerName) && (
+        <div className="fyt-mc-crease-line">
+          {strikerName && (
+            <span>
+              🏏 {strikerName}
+              {strikerRow ? ` ${strikerRow.runs} (${strikerRow.balls})` : ""} *
+            </span>
+          )}
+          {bowlerName && (
+            <span>
+              🎯 {bowlerName}
+              {bowlerRow ? ` ${bowlerRow.wickets}-${bowlerRow.runsConceded}` : ""}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="fyt-mc-footer">
         {match.venue ? (
@@ -259,6 +298,8 @@ export default function UserLiveMatches() {
     socket.on("match:scoreUpdated", refresh);
     socket.on("new-live-match", refresh);
     socket.on("match:completed", refresh);
+    socket.on("match:updated", refresh);
+    socket.on("match:deleted", refresh);
     socket.on("live-score-updated", refresh);
     socket.on("tournament-updated", refresh);
 
@@ -266,6 +307,8 @@ export default function UserLiveMatches() {
       socket.off("match:scoreUpdated", refresh);
       socket.off("new-live-match", refresh);
       socket.off("match:completed", refresh);
+      socket.off("match:updated", refresh);
+      socket.off("match:deleted", refresh);
       socket.off("live-score-updated", refresh);
       socket.off("tournament-updated", refresh);
     };

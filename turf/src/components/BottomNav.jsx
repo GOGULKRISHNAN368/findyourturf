@@ -11,7 +11,7 @@ import LockedFeatureModal from "./LockedFeatureModal";
 
 const ITEMS = [
   { path: "/", label: "Home", Icon: HomeIcon },
-  { path: "/turfs", label: "Book Turf", Icon: Calendar, locked: true },
+  { path: "/turfs", label: "Book Turf", Icon: Calendar },
   { path: "/tournaments", altPath: "/events", label: "Tournaments", Icon: Trophy },
   { path: "/live", label: "Live Scores", Icon: PlayCircle },
   { path: "/profile", label: "Profile", Icon: User },

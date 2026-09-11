@@ -5,22 +5,26 @@ import {
   Heart,
   Share2,
   MapPin,
-  CheckCircle2,
   Clock,
   Star,
   ShieldCheck,
   Zap,
-  Droplet,
-  Users,
-  Car,
-  Bath,
   CalendarDays,
-  Sparkles,
   ExternalLink,
+  Warehouse,
+  Sun,
+  CloudRain,
+  Wind,
+  Thermometer,
+  Dumbbell,
+  CheckCircle2,
+  Phone,
+  Info,
 } from "lucide-react";
-import { getTurf, getBookedSlots } from "../services/api";
+import { getTurf, getBookedSlots, getTurfWeather } from "../services/api";
 import { generateSlots } from "../services/slots";
 import { getTurfImage } from "../utils/sportsImages";
+import { socket } from "../services/socket";
 import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
 import BookMyShowSlotPicker from "../components/BookMyShowSlotPicker";
@@ -42,6 +46,13 @@ function buildDateChips(count = 7) {
   return chips;
 }
 
+const ROOF_LABEL = {
+  Open: { text: "Open Roof", icon: <Sun size={12} /> },
+  Closed: { text: "Closed / Roofed", icon: <Warehouse size={12} /> },
+  Partial: { text: "Partial Roof", icon: <Warehouse size={12} /> },
+  "Not verified": { text: "Roof: Not verified", icon: <Info size={12} /> },
+};
+
 export default function TurfDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -56,6 +67,8 @@ export default function TurfDetails() {
   const [bookedSlots, setBookedSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [weather, setWeather] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -72,21 +85,44 @@ export default function TurfDetails() {
     loadData();
   }, [id]);
 
+  // Slot availability for the chosen day (+ live refresh on new bookings).
   useEffect(() => {
     let active = true;
-    if (!id || !selectedDate) return;
-    setSlotsLoading(true);
+    if (!id || !selectedDate) return undefined;
+
+    function refreshSlots() {
+      setSlotsLoading(true);
+      getBookedSlots(id, selectedDate)
+        .then((slots) => active && setBookedSlots(slots || []))
+        .catch(() => active && setBookedSlots([]))
+        .finally(() => active && setSlotsLoading(false));
+    }
+
     setSelectedSlot(null);
-    getBookedSlots(id, selectedDate)
-      .then((slots) => {
-        if (active) setBookedSlots(slots || []);
-      })
-      .catch(() => {
-        if (active) setBookedSlots([]);
-      })
-      .finally(() => {
-        if (active) setSlotsLoading(false);
-      });
+    refreshSlots();
+
+    const onBookingChange = (payload) => {
+      if (String(payload?.turf) === String(id)) refreshSlots();
+    };
+    socket.on("booking:created", onBookingChange);
+    socket.on("booking:cancelled", onBookingChange);
+
+    return () => {
+      active = false;
+      socket.off("booking:created", onBookingChange);
+      socket.off("booking:cancelled", onBookingChange);
+    };
+  }, [id, selectedDate]);
+
+  // Weather forecast for the chosen day.
+  useEffect(() => {
+    let active = true;
+    if (!id || !selectedDate) return undefined;
+    setWeatherLoading(true);
+    getTurfWeather(id, selectedDate)
+      .then((w) => active && setWeather(w))
+      .catch(() => active && setWeather({ available: false }))
+      .finally(() => active && setWeatherLoading(false));
     return () => {
       active = false;
     };
@@ -143,13 +179,17 @@ export default function TurfDetails() {
   const duration = turf.slotDurationMinutes || 60;
   const slots = generateSlots(turf, { date: selectedDate, bookedSlots });
   const chosenSlotObj = slots.find((s) => s.value === selectedSlot);
+  const hours = Math.max(1, duration / 60);
+  const availCount = slots.filter((s) => s.available).length;
 
-  // Gallery image pool
-  const galleryImages = [
-    getTurfImage(turf, 0),
-    getTurfImage(turf, 1),
-    getTurfImage(turf, 2),
-  ];
+  const galleryImages = [getTurfImage(turf, 0), getTurfImage(turf, 1), getTurfImage(turf, 2)];
+  const facilities = turf.facilities && turf.facilities.length ? turf.facilities : [];
+  const equipment = turf.equipment || [];
+  const roof = ROOF_LABEL[turf.roofType] || ROOF_LABEL["Not verified"];
+  const sportList = Array.isArray(turf.sports) && turf.sports.length ? turf.sports : turf.sportType ? [turf.sportType] : [];
+  const hasPrice = turf.pricePerHour != null && turf.pricePerHour > 0;
+  const hoursKnown = Boolean(turf.openingTime || turf.closingTime);
+  const isBookable = hasPrice && turf.available !== false && turf.status !== "Inactive" && availCount > 0;
 
   const handleBooking = () => {
     if (!selectedSlot) return;
@@ -159,27 +199,18 @@ export default function TurfDetails() {
         date: selectedDate,
         slot: selectedSlot,
         endSlot: chosenSlotObj?.endLabel,
+        startMinutes: chosenSlotObj?.startMinutes,
         durationMinutes: duration,
       },
     });
   };
 
-  const amenities = [
-    { icon: <Zap size={18} />, label: "Stadium Floodlights" },
-    { icon: <Car size={18} />, label: "Free Vehicle Parking" },
-    { icon: <Bath size={18} />, label: "Clean Washrooms" },
-    { icon: <Droplet size={18} />, label: "Filtered Drinking Water" },
-    { icon: <Users size={18} />, label: "Spectator Seating Area" },
-    { icon: <ShieldCheck size={18} />, label: "First Aid Kit Available" },
-  ];
-
   return (
-    <div className="fyt-app-shell">
+    <div className="fyt-app-shell fyt-has-sticky-cta">
       <Navbar />
 
       <main className="fyt-main-content" style={{ paddingBottom: 110 }}>
         <div className="fyt-container">
-          {/* Breadcrumb / Back button */}
           <div className="fyt-td-nav-bar">
             <button className="fyt-back-btn" onClick={() => navigate(-1)} aria-label="Go Back">
               <ArrowLeft size={18} />
@@ -200,30 +231,21 @@ export default function TurfDetails() {
             </div>
           </div>
 
-          {/* Desktop 2-Column Grid Layout */}
           <div className="fyt-td-layout-grid">
-            {/* Left Column: Media Gallery, Info, Amenities */}
+            {/* LEFT */}
             <div className="fyt-td-left-col">
-              {/* Media Gallery */}
               <div className="fyt-td-gallery">
                 <div className="fyt-td-main-image-wrap">
-                  <img
-                    src={galleryImages[activeImageIndex]}
-                    alt={turf.name}
-                    className="fyt-td-main-img"
-                  />
+                  <img src={galleryImages[activeImageIndex]} alt={turf.name} className="fyt-td-main-img" />
                   <div className="fyt-td-img-overlay">
                     <span className="fyt-td-sport-pill">
-                      {turf.sportType === "Football" ? "⚽" : turf.sportType === "Cricket" ? "🏏" : "🏸"}{" "}
-                      {turf.sportType} Arena
+                      {sportList.length ? sportList.join(" · ") : "Turf"}
                     </span>
                     <span className="fyt-td-verified-pill">
-                      <ShieldCheck size={14} /> Verified Partner
+                      <MapPin size={13} /> {turf.location}
                     </span>
                   </div>
                 </div>
-
-                {/* Thumbnails */}
                 <div className="fyt-td-thumbnails">
                   {galleryImages.map((img, idx) => (
                     <button
@@ -237,16 +259,17 @@ export default function TurfDetails() {
                 </div>
               </div>
 
-              {/* Title & Location Header */}
               <div className="fyt-td-header-card">
                 <div className="fyt-td-title-row">
                   <div>
                     <h1 className="fyt-td-title">{turf.name}</h1>
                     <div className="fyt-td-loc-row">
                       <MapPin size={16} className="fyt-loc-pin" />
-                      <span>{turf.location}, Coimbatore</span>
+                      <span>{turf.address || `${turf.location}, Coimbatore`}</span>
                       <a
-                        href={`https://maps.google.com/?q=${encodeURIComponent(turf.name + " " + turf.location)}`}
+                        href={`https://maps.google.com/?q=${encodeURIComponent(
+                          turf.name + " " + (turf.address || turf.location)
+                        )}`}
                         target="_blank"
                         rel="noreferrer"
                         className="fyt-map-link"
@@ -256,54 +279,220 @@ export default function TurfDetails() {
                       </a>
                     </div>
                   </div>
-
-                  <div className="fyt-td-rating-box">
-                    <div className="fyt-td-rating-val">
-                      <Star size={16} fill="#FBBF24" color="#FBBF24" />
-                      <span>4.8</span>
+                  {turf.rating != null && (
+                    <div className="fyt-td-rating-box">
+                      <div className="fyt-td-rating-val">
+                        <Star size={16} fill="#FBBF24" color="#FBBF24" />
+                        <span>{turf.rating}</span>
+                      </div>
+                      <span className="fyt-td-rating-count">{turf.reviewsCount || 0} reviews</span>
                     </div>
-                    <span className="fyt-td-rating-count">120+ reviews</span>
-                  </div>
+                  )}
                 </div>
 
                 <div className="fyt-td-tags-list">
-                  <span className="fyt-badge-tag">{turf.sportType}</span>
-                  <span className="fyt-badge-tag">5v5 / 7v7</span>
-                  <span className="fyt-badge-tag">FIFA Approved Turf</span>
-                  <span className="fyt-badge-tag">Floodlights Available</span>
+                  {sportList.map((s) => (
+                    <span key={s} className="fyt-badge-tag">{s}</span>
+                  ))}
+                  <span className="fyt-badge-tag">{roof.icon} {roof.text}</span>
+                  {hasPrice ? (
+                    <span className="fyt-badge-tag">
+                      {isBookable ? "🟢 Slots available today" : "🔴 No slots left today"}
+                    </span>
+                  ) : (
+                    <span className="fyt-badge-tag">📞 Booking via venue</span>
+                  )}
+                  {turf.floodlightChargePerHour > 0 && (
+                    <span className="fyt-badge-tag">
+                      <Zap size={12} /> Floodlights +₹{turf.floodlightChargePerHour}/hr
+                    </span>
+                  )}
+                  {turf.contactNumber && (
+                    <span className="fyt-badge-tag"><Phone size={12} /> {turf.contactNumber}</span>
+                  )}
                 </div>
               </div>
 
-              {/* Amenities / Facilities */}
+              {/* Weather */}
               <section className="fyt-td-section-card">
-                <h2 className="fyt-section-title">Amenities &amp; Facilities</h2>
-                <div className="fyt-amenities-grid">
-                  {amenities.map((item, idx) => (
-                    <div key={idx} className="fyt-amenity-item">
-                      <div className="fyt-amenity-icon">{item.icon}</div>
-                      <span className="fyt-amenity-label">{item.label}</span>
+                <h2 className="fyt-section-title">
+                  Weather ·{" "}
+                  {new Date(selectedDate).toLocaleDateString("en-IN", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </h2>
+                {(weather?.weatherLocation || turf.weatherLocation) && (
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", marginTop: -4, marginBottom: 10 }}>
+                    Forecast for {weather?.weatherLocation || turf.weatherLocation}
+                    {weather && weather.available && weather.coordsVerified === false ? " (area-level)" : ""}
+                  </p>
+                )}
+                {weatherLoading ? (
+                  <p style={{ color: "var(--text-secondary)" }}>Checking the forecast…</p>
+                ) : weather && weather.available ? (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 40, lineHeight: 1 }}>{weather.icon}</div>
+                      <div>
+                        <strong style={{ fontSize: "1.05rem" }}>{weather.condition}</strong>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: 2 }}>
+                          {weather.playable
+                            ? "Good conditions for play"
+                            : "Rain likely — a covered turf is a safer bet"}
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="fyt-info-grid-2" style={{ marginTop: 14 }}>
+                      <div className="fyt-info-stat-box">
+                        <span className="fyt-isb-label"><Thermometer size={13} /> Temperature</span>
+                        <strong className="fyt-isb-val">
+                          {Math.round(weather.tempMinC)}° – {Math.round(weather.tempMaxC)}°C
+                        </strong>
+                      </div>
+                      <div className="fyt-info-stat-box">
+                        <span className="fyt-isb-label"><CloudRain size={13} /> Chance of rain</span>
+                        <strong className="fyt-isb-val">{weather.precipitationChance ?? 0}%</strong>
+                      </div>
+                      <div className="fyt-info-stat-box">
+                        <span className="fyt-isb-label"><Wind size={13} /> Max wind</span>
+                        <strong className="fyt-isb-val">{Math.round(weather.windMaxKmh ?? 0)} km/h</strong>
+                      </div>
+                      <div className="fyt-info-stat-box">
+                        <span className="fyt-isb-label"><Warehouse size={13} /> Roof</span>
+                        <strong className="fyt-isb-val">{roof.text}</strong>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ color: "var(--text-secondary)" }}>
+                    Forecast unavailable right now — please check again later.
+                  </p>
+                )}
               </section>
 
-              {/* About Turf */}
+              {/* Facilities */}
               <section className="fyt-td-section-card">
-                <h2 className="fyt-section-title">About this Arena</h2>
-                <p className="fyt-td-about-text">
-                  Experience elite sports performance at <strong>{turf.name}</strong>. Featuring high-grade, cushioned all-weather artificial turf, pro-grade stadium floodlights for night matches, sanitized changing rooms, and comfortable seating for spectators.
-                </p>
-                <div className="fyt-td-hours-info">
-                  <Clock size={16} className="fyt-clock-icon" />
-                  <span>
-                    Operating Hours: <strong>{turf.openingTime || "06:00"}</strong> to <strong>{turf.closingTime || "23:00"}</strong> · Slot duration: <strong>{duration} mins</strong>
-                  </span>
+                <h2 className="fyt-section-title">Facilities</h2>
+                {facilities.length ? (
+                  <div className="fyt-amenities-grid">
+                    {facilities.map((label, idx) => (
+                      <div key={idx} className="fyt-amenity-item">
+                        <div className="fyt-amenity-icon"><CheckCircle2 size={18} /></div>
+                        <span className="fyt-amenity-label">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: "var(--text-secondary)" }}>
+                    Facility details are not verified for this turf yet.
+                  </p>
+                )}
+              </section>
+
+              {/* Equipment */}
+              {equipment.length > 0 && (
+                <section className="fyt-td-section-card">
+                  <h2 className="fyt-section-title">Playing Equipment</h2>
+                  <p
+                    style={{
+                      color: "var(--text-secondary)",
+                      fontSize: "0.85rem",
+                      marginTop: -4,
+                      marginBottom: 12,
+                    }}
+                  >
+                    Add any of these to your booking at checkout.
+                  </p>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {equipment.map((eq, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 12px",
+                          border: "1px solid var(--border-color, #e5e7eb)",
+                          borderRadius: 10,
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Dumbbell size={15} className="fyt-loc-pin" /> {eq.name}
+                        </span>
+                        <strong style={{ color: eq.rentalCharge > 0 ? "var(--text-primary)" : "#16a34a" }}>
+                          {eq.rentalCharge > 0 ? `₹${eq.rentalCharge}` : "Free"}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Info */}
+              <section className="fyt-td-section-card">
+                <h2 className="fyt-section-title">Turf Info</h2>
+                {turf.description && (
+                  <p className="fyt-td-about-text">{turf.description}</p>
+                )}
+                <div style={{ display: "grid", gap: 8, marginTop: turf.description ? 12 : 0 }}>
+                  <div className="fyt-td-hours-info">
+                    <Clock size={16} className="fyt-clock-icon" />
+                    <span>
+                      {hoursKnown ? (
+                        <>Open <strong>{turf.openingTime || "—"}</strong> – <strong>{turf.closingTime || "—"}</strong></>
+                      ) : (
+                        <>Opening hours: <strong>Not verified</strong></>
+                      )}{" "}
+                      · Slot length: <strong>{duration} mins</strong>
+                    </span>
+                  </div>
+                  {turf.contactNumber && (
+                    <div className="fyt-td-hours-info">
+                      <Phone size={16} className="fyt-clock-icon" />
+                      <span>Venue contact: <strong>{turf.contactNumber}</strong></span>
+                    </div>
+                  )}
+                  <div className="fyt-td-hours-info">
+                    <Dumbbell size={16} className="fyt-clock-icon" />
+                    <span>
+                      Equipment:{" "}
+                      <strong>
+                        {equipment.length ? equipment.map((e) => e.name).join(", ") : "Not verified"}
+                      </strong>
+                    </span>
+                  </div>
                 </div>
               </section>
             </div>
 
-            {/* Right Column: BookMyShow-style Slot Picker & Sticky Booking Widget */}
+            {/* RIGHT: booking panel */}
             <div className="fyt-td-right-col">
+              {!hasPrice ? (
+                <div className="fyt-booking-panel">
+                  <span className="fyt-bp-tag">Booking</span>
+                  <h3 className="fyt-bp-title" style={{ marginBottom: 8 }}>Contact the venue to book</h3>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.88rem" }}>
+                    Online pricing and slots for this turf are not verified yet. Call the venue directly to
+                    check availability and rates.
+                  </p>
+                  {turf.contactNumber ? (
+                    <a
+                      href={`tel:${turf.contactNumber.replace(/\s+/g, "")}`}
+                      className="fyt-btn-book-primary"
+                      style={{ marginTop: 14, textDecoration: "none" }}
+                    >
+                      <Phone size={16} /> Call {turf.contactNumber}
+                    </a>
+                  ) : (
+                    <p style={{ marginTop: 12, fontWeight: 700 }}>Contact number not available.</p>
+                  )}
+                  <div className="fyt-bp-guarantee">
+                    <Info size={14} /> <span>We only show verified data — nothing is guessed.</span>
+                  </div>
+                </div>
+              ) : (
               <div className="fyt-booking-panel">
                 <div className="fyt-bp-header">
                   <div>
@@ -316,7 +505,6 @@ export default function TurfDetails() {
                   </div>
                 </div>
 
-                {/* 1. BookMyShow-Style Horizontal Date Selector */}
                 <div className="fyt-bp-section">
                   <label className="fyt-bp-label">
                     <CalendarDays size={16} /> <span>1. Select Date</span>
@@ -336,12 +524,10 @@ export default function TurfDetails() {
                   </div>
                 </div>
 
-                {/* 2. BookMyShow-Style Time Slot Selection (Morning, Afternoon, Evening, Night) */}
                 <div className="fyt-bp-section">
                   <label className="fyt-bp-label" style={{ marginBottom: 12 }}>
                     <Clock size={16} /> <span>2. Select Time Slot</span>
                   </label>
-
                   <BookMyShowSlotPicker
                     slots={slots}
                     selectedSlot={selectedSlot}
@@ -352,43 +538,99 @@ export default function TurfDetails() {
                   />
                 </div>
 
-                {/* CTA Action */}
+                <div
+                  className="fyt-bp-section"
+                  style={{ borderTop: "1px dashed var(--border-color, #e5e7eb)", paddingTop: 12 }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "0.9rem",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ color: "var(--text-secondary)" }}>Base ({hours} hr)</span>
+                    <strong>₹{Math.round(turf.pricePerHour * hours)}</strong>
+                  </div>
+                  {turf.floodlightChargePerHour > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontSize: "0.85rem",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      <span>
+                        <Zap size={12} style={{ verticalAlign: "middle" }} /> Floodlights (optional)
+                      </span>
+                      <span>+₹{Math.round(turf.floodlightChargePerHour * hours)}</span>
+                    </div>
+                  )}
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: 6 }}>
+                    Choose players &amp; add-ons and see the full split on the next step.
+                  </div>
+                </div>
+
                 <button
                   className="fyt-btn-book-primary"
                   onClick={handleBooking}
                   disabled={!selectedSlot}
-                  style={{ marginTop: 16 }}
+                  style={{ marginTop: 12 }}
                 >
-                  {selectedSlot ? `Continue (₹${turf.pricePerHour})` : "Choose an Available Slot"}
+                  {selectedSlot
+                    ? `Continue · ₹${Math.round(turf.pricePerHour * hours)}`
+                    : "Choose an Available Slot"}
                 </button>
 
                 <div className="fyt-bp-guarantee">
-                  <ShieldCheck size={14} /> <span>100% Instant Confirmation · No Hidden Charges</span>
+                  <ShieldCheck size={14} /> <span>Instant confirmation · Split the bill with your team</span>
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>
       </main>
 
-      {/* Sticky Bottom Action for Mobile Viewports */}
       <div className="fyt-sticky-mobile-bottom">
-        <div className="fyt-smb-info">
-          <div className="fyt-smb-price">
-            <strong>₹{turf.pricePerHour}</strong>
-            <span>/ hr</span>
-          </div>
-          <span className="fyt-smb-slot-indicator">
-            {selectedSlot ? `Selected: ${selectedSlot}` : "Pick a time slot"}
-          </span>
-        </div>
-        <button
-          className="fyt-smb-btn"
-          onClick={handleBooking}
-          disabled={!selectedSlot}
-        >
-          {selectedSlot ? "Continue" : "Select Slot"}
-        </button>
+        {hasPrice ? (
+          <>
+            <div className="fyt-smb-info">
+              <div className="fyt-smb-price">
+                <strong>₹{turf.pricePerHour}</strong>
+                <span>/ hr</span>
+              </div>
+              <span className="fyt-smb-slot-indicator">
+                {selectedSlot ? `Selected: ${selectedSlot}` : "Pick a time slot"}
+              </span>
+            </div>
+            <button className="fyt-smb-btn" onClick={handleBooking} disabled={!selectedSlot}>
+              {selectedSlot ? "Continue" : "Select Slot"}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="fyt-smb-info">
+              <span className="fyt-smb-slot-indicator" style={{ fontWeight: 700 }}>
+                {turf.name}
+              </span>
+              <span className="fyt-smb-slot-indicator">Booking via venue</span>
+            </div>
+            {turf.contactNumber ? (
+              <a
+                className="fyt-smb-btn"
+                href={`tel:${turf.contactNumber.replace(/\s+/g, "")}`}
+                style={{ textDecoration: "none" }}
+              >
+                <Phone size={14} style={{ verticalAlign: "middle" }} /> Call
+              </a>
+            ) : (
+              <button className="fyt-smb-btn" disabled>No contact</button>
+            )}
+          </>
+        )}
       </div>
 
       <BottomNav />

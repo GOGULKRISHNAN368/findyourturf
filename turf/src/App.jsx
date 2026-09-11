@@ -42,6 +42,10 @@ import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import PublicMatchScorecard from "./pages/PublicMatchScorecard";
 import TournamentsPage from "./pages/TournamentsPage";
+import BookTurf from "./pages/BookTurf";
+import TurfDetails from "./pages/TurfDetails";
+import Checkout from "./pages/Checkout";
+import AddonsCatalog from "./pages/AddonsCatalog";
 
 // Banners
 import banner1 from "./assets/banners/promo_tournaments_1788516995082.jpg";
@@ -112,12 +116,13 @@ function useEvents() {
 }
 
 function HeroSection() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [lockedFeature, setLockedFeature] = useState("");
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    setLockedFeature("Book Turf");
+    const q = searchQuery.trim();
+    navigate(q ? `/turfs?q=${encodeURIComponent(q)}` : "/turfs");
   };
 
   return (
@@ -152,13 +157,13 @@ function HeroSection() {
                   <Search size={18} className="fyt-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search arenas coming soon..."
+                    placeholder="Search turf, area (Peelamedu, RS Puram)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
                 <button type="submit" className="fyt-hero-search-btn">
-                  <span>Coming Soon</span>
+                  <span>Find Turfs</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -212,9 +217,6 @@ function HeroSection() {
           </div>
         </div>
       </div>
-      {lockedFeature && (
-        <LockedFeatureModal feature={lockedFeature} onClose={() => setLockedFeature("")} />
-      )}
     </section>
   );
 }
@@ -225,7 +227,8 @@ function QuickActions() {
   const quickAccess = [
     { label: "Tournaments", Icon: Trophy, active: true, onClick: () => navigate("/tournaments") },
     { label: "Live Scores", Icon: PlayCircle, active: true, onClick: () => navigate("/live") },
-    { label: "Book Turf", Icon: CalendarDays },
+    { label: "Book Turf", Icon: CalendarDays, active: true, onClick: () => navigate("/turfs") },
+    { label: "Add-ons", Icon: Sparkles, active: true, onClick: () => navigate("/addons") },
     { label: "Find Players", Icon: Users },
     { label: "Auto Teams", Icon: Sparkles },
     { label: "Team Chat", Icon: PlayCircle },
@@ -406,7 +409,6 @@ function LockedSections() {
   const sections = [
     { title: "My Bookings", detail: "Booking feature coming soon", icon: CalendarDays },
     { title: "Your Zone", detail: "Student & Corporate zones coming soon", icon: Users },
-    { title: "Book Add-ons", detail: "Photography, coaching & equipment soon", icon: Sparkles },
     { title: "Rewards", detail: "Earn rewards and unlock perks soon", icon: Trophy },
     { title: "Community", detail: "Connect with players soon", icon: Users },
   ];
@@ -524,31 +526,6 @@ function Home() {
       </main>
 
       <BottomNav />
-    </div>
-  );
-}
-
-function LockedFeaturePage() {
-  const [showModal, setShowModal] = useState(true);
-
-  return (
-    <div className="fyt-app-shell">
-      <Navbar />
-      <main className="fyt-main-content" style={{ paddingBottom: 110 }}>
-        <div className="fyt-container fyt-locked-page">
-          <div className="fyt-locked-page-icon"><Lock size={26} /></div>
-          <span className="fyt-section-kicker">FEATURE STATUS</span>
-          <h1>Book Turf is coming soon</h1>
-          <p>We are preparing verified venues and easy slot booking for you.</p>
-          <button className="fyt-btn-primary" onClick={() => setShowModal(true)}>
-            <Lock size={15} /> Coming Soon
-          </button>
-        </div>
-      </main>
-      <BottomNav />
-      {showModal && (
-        <LockedFeatureModal feature="Book Turf" onClose={() => setShowModal(false)} />
-      )}
     </div>
   );
 }
@@ -912,9 +889,10 @@ function App() {
       <Route path="/tournaments/:id" element={<TournamentDetails />} />
       <Route path="/events" element={<TournamentsPage />} />
       <Route path="/events/:id" element={<TournamentDetails />} />
-      <Route path="/turfs" element={<LockedFeaturePage />} />
-      <Route path="/turfs/:id" element={<LockedFeaturePage />} />
-      <Route path="/turfs/:id/checkout" element={<LockedFeaturePage />} />
+      <Route path="/turfs" element={<BookTurf />} />
+      <Route path="/turfs/:id" element={<TurfDetails />} />
+      <Route path="/turfs/:id/checkout" element={<Checkout />} />
+      <Route path="/addons" element={<AddonsCatalog />} />
       <Route path="/live" element={<UserLiveMatches />} />
       <Route path="/live/:id" element={<PublicMatchScorecard />} />
       <Route path="/notifications" element={<Notifications />} />

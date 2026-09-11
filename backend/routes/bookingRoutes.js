@@ -1,8 +1,39 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
+const Turf = require("../models/Turf");
+const User = require("../models/User");
+const AddonBooking = require("../models/AddonBooking");
 const protect = require("../middleware/authMiddleware");
+const { computeBookingPrice } = require("../utils/turfPricing");
+const { resolveAddons } = require("../utils/addonPricing");
 
 const router = express.Router();
+
+// Link an existing User if one already matches the contact details. The player
+// app has no login, so we never create accounts here — the booking's contact
+// snapshot (name / phone / email) is the source of truth.
+async function linkUser({ user, phone, email }) {
+    try {
+        if (user && mongoose.Types.ObjectId.isValid(user)) {
+            const byId = await User.findById(user);
+            if (byId) return byId._id;
+        }
+        const cleanEmail = (email || "").trim().toLowerCase();
+        const cleanPhone = (phone || "").trim();
+        const match =
+            (cleanEmail && (await User.findOne({ email: cleanEmail }))) ||
+            (cleanPhone && (await User.findOne({ phone: cleanPhone })));
+        return match ? match._id : null;
+    } catch {
+        return null;
+    }
+}
+
+function emit(req, event, payload) {
+    const io = req.app.get("io");
+    if (io) io.emit(event, payload);
+}
 
 
 // ==========================================
@@ -65,8 +96,7 @@ router.get("/availability", async (req, res) => {
             turf,
             bookingDate: new Date(bookingDate),
             status: { $ne: "Cancelled" },
-            startTime: { $lt: endTime },
-            endTime: { $gt: startTime }
+            startTime
         });
 
         if (existingBooking) {
@@ -90,7 +120,86 @@ router.get("/availability", async (req, res) => {
 
 
 // ==========================================
+// PRICE QUOTE - PUBLIC
+// Returns the authoritative price breakdown + split (no booking is made).
+// ==========================================
+router.post("/quote", async (req, res) => {
+    try {
+        const { turf, players, useFloodlight, equipment, addons, date, startTime } = req.body;
+
+        const turfDoc = await Turf.findById(turf);
+        if (!turfDoc) {
+            return res.status(404).json({ message: "Turf not found" });
+        }
+        if (turfDoc.pricePerHour == null || turfDoc.pricePerHour <= 0) {
+            return res.status(400).json({
+                message: "Online pricing for this turf is not available yet. Please contact the venue to book.",
+                pricingUnavailable: true,
+                contactNumber: turfDoc.contactNumber || ""
+            });
+        }
+
+        let addonLines = [];
+        try {
+            const resolved = await resolveAddons(addons, { date, startTime });
+            addonLines = resolved.lines;
+        } catch (e) {
+            return res.status(e.status || 400).json({ message: e.message || "An add-on is unavailable." });
+        }
+
+        const price = computeBookingPrice(turfDoc, {
+            players,
+            useFloodlight,
+            equipment,
+            addonLines
+        });
+
+        res.json({ turf: turfDoc._id, ...price });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+
+// ==========================================
+// MY BOOKINGS - PUBLIC (by contact email / phone)
+// ==========================================
+router.get("/mine", async (req, res) => {
+    try {
+        const { email, phone } = req.query;
+        const or = [];
+        if (email) or.push({ contactEmail: String(email).trim().toLowerCase() });
+        if (phone) or.push({ contactPhone: String(phone).trim() });
+
+        if (or.length === 0) {
+            return res.json({ bookings: [] });
+        }
+
+        const bookings = await Booking.find({ $or: or })
+            .populate("turf")
+            .sort({ createdAt: -1 });
+
+        const ids = bookings.map((b) => b._id);
+        const addons = await AddonBooking.find({ booking: { $in: ids } }).lean();
+        const byBooking = {};
+        addons.forEach((a) => {
+            (byBooking[String(a.booking)] = byBooking[String(a.booking)] || []).push(a);
+        });
+
+        res.json({
+            bookings: bookings.map((b) => ({ ...b.toObject(), addons: byBooking[String(b._id)] || [] }))
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+
+// ==========================================
 // CREATE BOOKING - PUBLIC
+// The price is always recomputed on the server from the Turf record.
 // ==========================================
 router.post("/", async (req, res) => {
     try {
@@ -100,53 +209,148 @@ router.post("/", async (req, res) => {
             bookingDate,
             startTime,
             endTime,
-            totalAmount,
+            players,
+            useFloodlight,
+            equipment,
+            addons,
+            contact = {},
+            paymentMethod,
             status
         } = req.body;
 
-        if (
-            !user ||
-            !turf ||
-            !bookingDate ||
-            !startTime ||
-            !endTime ||
-            totalAmount === undefined ||
-            !status
-        ) {
+        if (!turf || !bookingDate || !startTime || !endTime) {
             return res.status(400).json({
-                message: "All booking fields are required"
+                message: "turf, bookingDate, startTime and endTime are required"
             });
         }
 
-        const existingBooking = await Booking.findOne({
+        const turfDoc = await Turf.findById(turf);
+        if (!turfDoc) {
+            return res.status(404).json({ message: "Turf not found" });
+        }
+        if (turfDoc.available === false || turfDoc.status === "Inactive") {
+            return res.status(400).json({ message: "This turf is not accepting bookings right now." });
+        }
+        if (turfDoc.pricePerHour == null || turfDoc.pricePerHour <= 0) {
+            return res.status(400).json({
+                message: "Online booking for this turf is not available yet. Please contact the venue directly.",
+                pricingUnavailable: true,
+                contactNumber: turfDoc.contactNumber || ""
+            });
+        }
+
+        // --- Double-booking guard: same turf, same day, same start slot ---
+        const day = new Date(bookingDate);
+        const nextDay = new Date(day);
+        nextDay.setDate(day.getDate() + 1);
+
+        const clash = await Booking.findOne({
             turf,
-            bookingDate: new Date(bookingDate),
+            bookingDate: { $gte: day, $lt: nextDay },
             status: { $ne: "Cancelled" },
-            startTime: { $lt: endTime },
-            endTime: { $gt: startTime }
+            startTime
         });
 
-        if (existingBooking) {
-            return res.status(400).json({
-                message: "This turf is already booked for this time."
+        if (clash) {
+            return res.status(409).json({
+                message: "This slot was just booked by someone else. Please pick another time."
             });
         }
 
-        const booking = new Booking({
+        if (!contact || !String(contact.name || "").trim() || !String(contact.phone || "").trim()) {
+            return res.status(400).json({ message: "Your name and phone number are required to book." });
+        }
+
+        // --- Resolve + validate add-ons (availability + stock) BEFORE writing ---
+        let addonLines = [];
+        try {
+            const resolved = await resolveAddons(addons, { date: day, startTime });
+            addonLines = resolved.lines;
+        } catch (e) {
+            return res.status(e.status || 400).json({ message: e.message || "An add-on is unavailable." });
+        }
+
+        const price = computeBookingPrice(turfDoc, { players, useFloodlight, equipment, addonLines });
+
+        const linkedUserId = await linkUser({
             user,
+            phone: contact.phone,
+            email: contact.email
+        });
+
+        const contactName = String(contact.name || "").trim();
+        const contactPhone = String(contact.phone || "").trim();
+        const contactEmail = String(contact.email || "").trim().toLowerCase();
+
+        const booking = await Booking.create({
+            user: linkedUserId,
             turf,
-            bookingDate,
+            bookingDate: day,
             startTime,
             endTime,
-            totalAmount,
-            status
+            players: price.players,
+            perPersonAmount: price.perPersonAmount,
+            baseAmount: price.baseAmount,
+            floodlightApplied: price.floodlightApplied,
+            floodlightAmount: price.floodlightAmount,
+            equipmentSelected: price.equipmentSelected,
+            equipmentAmount: price.equipmentAmount,
+            addonsAmount: price.addonsAmount,
+            totalAmount: price.totalAmount,
+            contactName,
+            contactPhone,
+            contactEmail,
+            paymentMethod: paymentMethod || "UPI",
+            status: status === "Pending" ? "Pending" : "Confirmed"
         });
 
-        const savedBooking = await booking.save();
+        // --- Persist each add-on. Roll the whole booking back on any failure. ---
+        let addonDocs = [];
+        try {
+            if (addonLines.length) {
+                addonDocs = await AddonBooking.insertMany(
+                    addonLines.map((l) => ({
+                        user: linkedUserId,
+                        turf,
+                        booking: booking._id,
+                        service: l.serviceId,
+                        type: l.type,
+                        serviceName: l.name,
+                        bookingDate: day,
+                        startTime,
+                        endTime: endTime || startTime,
+                        unitPrice: l.unitPrice,
+                        quantity: l.quantity,
+                        lineTotal: l.lineTotal,
+                        contactName,
+                        contactPhone,
+                        contactEmail,
+                        status: "Confirmed"
+                    }))
+                );
+            }
+        } catch (e) {
+            await AddonBooking.deleteMany({ booking: booking._id });
+            await Booking.deleteOne({ _id: booking._id });
+            return res.status(500).json({ message: "Could not attach add-ons: " + e.message });
+        }
+
+        const populated = await booking.populate("turf");
+
+        emit(req, "booking:created", {
+            _id: booking._id,
+            turf: String(turf),
+            bookingDate: day.toISOString(),
+            startTime
+        });
+        if (addonDocs.length) {
+            emit(req, "addon:booked", { booking: String(booking._id), turf: String(turf), bookingDate: day.toISOString(), startTime });
+        }
 
         res.status(201).json({
             message: "Booking created successfully",
-            booking: savedBooking
+            booking: populated,
+            addons: addonDocs
         });
 
     } catch (error) {
@@ -164,7 +368,8 @@ router.get("/", protect, async (req, res) => {
     try {
         const bookings = await Booking.find()
             .populate("user")
-            .populate("turf");
+            .populate("turf")
+            .sort({ createdAt: -1 });
 
         res.status(200).json(bookings);
 
@@ -191,7 +396,8 @@ router.get("/:id", protect, async (req, res) => {
             });
         }
 
-        res.status(200).json(booking);
+        const addons = await AddonBooking.find({ booking: booking._id }).populate("service", "name type");
+        res.status(200).json({ ...booking.toObject(), addons });
 
     } catch (error) {
         res.status(500).json({
@@ -217,6 +423,19 @@ router.put("/:id/cancel", protect, async (req, res) => {
         booking.status = "Cancelled";
 
         const updatedBooking = await booking.save();
+
+        // Free up any attached add-ons (photographer/coach slots, equipment stock).
+        await AddonBooking.updateMany(
+            { booking: booking._id, status: { $ne: "Cancelled" } },
+            { $set: { status: "Cancelled" } }
+        );
+
+        emit(req, "booking:cancelled", {
+            _id: booking._id,
+            turf: String(booking.turf),
+            bookingDate: booking.bookingDate.toISOString(),
+            startTime: booking.startTime
+        });
 
         res.json({
             message: "Booking cancelled successfully",

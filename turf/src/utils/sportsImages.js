@@ -143,6 +143,13 @@ export const LOCKED_DEMO_TURFS = [
 ];
 
 export function getTurfImage(turf, index = 0) {
+  // Prefer the turf's own gallery images from the database.
+  const gallery = Array.isArray(turf?.images)
+    ? turf.images.filter((u) => typeof u === "string" && u.startsWith("http"))
+    : [];
+  if (gallery.length) {
+    return gallery[index % gallery.length];
+  }
   if (turf?.image && typeof turf.image === "string" && turf.image.startsWith("http")) {
     return turf.image;
   }

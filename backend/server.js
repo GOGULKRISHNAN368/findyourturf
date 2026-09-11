@@ -12,6 +12,8 @@ dotenv.config();
 
 const connectDB = require("./config/db");
 const seedAdmin = require("./config/seedAdmin");
+const seedTurfs = require("./config/seedTurfs");
+const seedAddons = require("./config/seedAddons");
 
 const app = express();
 const server = http.createServer(app);
@@ -113,6 +115,9 @@ app.use("/api/turfs", turfRoutes);
 const bookingRoutes = require("./routes/bookingRoutes");
 app.use("/api/bookings", bookingRoutes);
 
+const addonRoutes = require("./routes/addonRoutes");
+app.use("/api/addons", addonRoutes);
+
 const tournamentRoutes = require("./routes/tournamentRoutes");
 app.use("/api/tournaments", tournamentRoutes);
 
@@ -147,6 +152,8 @@ async function startServer() {
   try {
     await connectDB();
     await seedAdmin();
+    await seedTurfs();
+    await seedAddons();
 
     server.listen(PORT, "0.0.0.0", () => {
       console.log("----------------------------------");

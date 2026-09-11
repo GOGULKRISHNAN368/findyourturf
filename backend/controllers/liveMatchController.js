@@ -56,6 +56,157 @@ function cleanText(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+// ---------------------------------------------------------------------------
+// PLAYER-STAT HELPERS
+// Per-player stats live inside match.score.<innings>.batting / .bowling and the
+// current striker/non-striker/bowler ids live in match.state. Both containers
+// are snapshotted by BallEvent.previousScore / previousState in scoreBall and
+// restored by undoLastBall, so nothing here needs its own undo path.
+// ---------------------------------------------------------------------------
+
+function teamForSlot(match, slot) {
+  return slot === "Team A" ? match.teamA : slot === "Team B" ? match.teamB : null;
+}
+
+function rosterFor(match, slot) {
+  const team = teamForSlot(match, slot);
+  return (team && Array.isArray(team.players)) ? team.players : [];
+}
+
+function findRosterPlayer(match, slot, playerId) {
+  if (!playerId) return null;
+  const wanted = String(playerId);
+  return rosterFor(match, slot).find(
+    (p) => String(p.playerId) === wanted || String(p._id) === wanted
+  ) || null;
+}
+
+function findRosterPlayerByName(match, slot, name) {
+  const clean = cleanText(name).toLowerCase();
+  if (!clean) return null;
+  return rosterFor(match, slot).find(
+    (p) => String(p.name || "").trim().toLowerCase() === clean
+  ) || null;
+}
+
+// Resolve a typed name to a roster playerId, REGISTERING a new match player for
+// that team when the name is not already on the roster (e.g. the match was
+// created without a squad). Never creates a duplicate for a name that already
+// exists (case-insensitive). Returns { id, created } or null for an empty name.
+function resolveOrCreateRosterPlayer(match, slot, name) {
+  const team = teamForSlot(match, slot);
+  const clean = cleanText(name);
+  if (!team || !clean) return null;
+
+  const existing = findRosterPlayerByName(match, slot, clean);
+  if (existing) {
+    return { id: String(existing.playerId || existing._id), created: false };
+  }
+
+  team.players.push({ name: clean });
+  const added = team.players[team.players.length - 1];
+  match.markModified(slot === "Team A" ? "teamA" : "teamB");
+  return { id: String(added.playerId || added._id), created: true };
+}
+
+function rosterPlayerName(match, slot, playerId, fallback = "") {
+  const p = findRosterPlayer(match, slot, playerId);
+  return p?.name || fallback || "";
+}
+
+// Find or lazily create the batting-card row for a player.
+function ensureBatter(inningsScore, match, battingSlot, playerId) {
+  if (!playerId) return null;
+  const wanted = String(playerId);
+  let row = inningsScore.batting.find((b) => String(b.playerId) === wanted);
+  if (!row) {
+    inningsScore.batting.push({
+      playerId: wanted,
+      name: rosterPlayerName(match, battingSlot, wanted, "Batter"),
+      battingOrder: inningsScore.batting.length + 1,
+      dismissalText: "not out",
+    });
+    row = inningsScore.batting[inningsScore.batting.length - 1];
+  }
+  return row;
+}
+
+// Find or lazily create the bowling-card row for a player.
+function ensureBowler(inningsScore, match, bowlingSlot, playerId) {
+  if (!playerId) return null;
+  const wanted = String(playerId);
+  let row = inningsScore.bowling.find((b) => String(b.playerId) === wanted);
+  if (!row) {
+    inningsScore.bowling.push({
+      playerId: wanted,
+      name: rosterPlayerName(match, bowlingSlot, wanted, "Bowler"),
+    });
+    row = inningsScore.bowling[inningsScore.bowling.length - 1];
+  }
+  return row;
+}
+
+// Dismissals credited to the bowler in the bowling figures.
+function bowlerCreditedWicket(type) {
+  return ["Bowled", "Caught", "LBW", "Stumped", "Hit Wicket"].includes(type);
+}
+
+function buildDismissalText(type, bowlerName, fielderName) {
+  const b = bowlerName || "";
+  const f = fielderName || "";
+  switch (type) {
+    case "Bowled": return b ? `b ${b}` : "bowled";
+    case "LBW": return b ? `lbw b ${b}` : "lbw";
+    case "Caught": return `c ${f || "fielder"}${b ? ` b ${b}` : ""}`;
+    case "Stumped": return `st ${f || "keeper"}${b ? ` b ${b}` : ""}`;
+    case "Hit Wicket": return b ? `hit wicket b ${b}` : "hit wicket";
+    case "Run Out": return f ? `run out (${f})` : "run out";
+    case "Retired": return "retired";
+    default: return type ? String(type).toLowerCase() : "out";
+  }
+}
+
+// Map a live innings (runs/wickets/legalBalls + batting[]/bowling[]) onto the
+// CompletedMatch scorecard shape. Safe on legacy matches with empty arrays.
+function snapshotInnings(teamName, innings) {
+  const legalBalls = innings?.legalBalls || 0;
+  const batting = (innings?.batting || []).map((b) => ({
+    playerName: b.name || "",
+    runs: b.runs || 0,
+    balls: b.balls || 0,
+    fours: b.fours || 0,
+    sixes: b.sixes || 0,
+    dismissal: b.isOut ? (b.dismissalText || "out") : "not out",
+  }));
+  const bowling = (innings?.bowling || []).map((w) => {
+    const balls = w.legalBalls || 0;
+    const oversNum = balls / 6;
+    return {
+      playerName: w.name || "",
+      overs: oversDisplay(balls),
+      runs: w.runsConceded || 0,
+      wickets: w.wickets || 0,
+      economy: oversNum > 0 ? ((w.runsConceded || 0) / oversNum).toFixed(2) : "0.00",
+    };
+  });
+  const fallOfWickets = (innings?.fallOfWickets || []).map((f) => ({
+    wicketNumber: f.wicketNumber,
+    runs: f.runs || 0,
+    oversDisplay: f.oversDisplay || "0.0",
+    playerOutName: f.playerOutName || "",
+  }));
+  return {
+    team: teamName,
+    runs: innings?.runs || 0,
+    wickets: innings?.wickets || 0,
+    oversDisplay: oversDisplay(legalBalls),
+    extras: innings?.extras || 0,
+    batting,
+    bowling,
+    fallOfWickets,
+  };
+}
+
 async function archiveCompletedMatch(match) {
   const ballEvents = await BallEvent.find({ matchId: match._id }).sort({ sequenceNumber: 1 });
   const firstBattingTeam = match.state?.currentInnings === 2
@@ -63,20 +214,8 @@ async function archiveCompletedMatch(match) {
     : match.state?.battingTeamId;
   const secondBattingTeam = firstBattingTeam === "Team A" ? "Team B" : "Team A";
   const scorecards = {
-    firstInnings: {
-      team: teamNameFor(match, firstBattingTeam),
-      runs: match.score.firstInnings.runs,
-      wickets: match.score.firstInnings.wickets,
-      oversDisplay: oversDisplay(match.score.firstInnings.legalBalls),
-      extras: match.score.firstInnings.extras,
-    },
-    secondInnings: {
-      team: teamNameFor(match, secondBattingTeam),
-      runs: match.score.secondInnings.runs,
-      wickets: match.score.secondInnings.wickets,
-      oversDisplay: oversDisplay(match.score.secondInnings.legalBalls),
-      extras: match.score.secondInnings.extras,
-    },
+    firstInnings: snapshotInnings(teamNameFor(match, firstBattingTeam), match.score.firstInnings),
+    secondInnings: snapshotInnings(teamNameFor(match, secondBattingTeam), match.score.secondInnings),
   };
 
   const ballHistory = ballEvents.map((ball) => ({
@@ -250,10 +389,83 @@ exports.updateMatchState = async (req, res) => {
       if (state.bowlingTeamId && !["Team A", "Team B"].includes(state.bowlingTeamId)) {
         return res.status(400).json({ success: false, error: "Invalid bowling team" });
       }
-      match.state = { ...match.state, ...state };
+
+      // Merge the simple pass-through fields explicitly (safer than spreading a
+      // Mongoose nested path and keeps client from writing internal fields).
+      if (state.status !== undefined) match.state.status = state.status;
+      if (state.currentInnings !== undefined) match.state.currentInnings = state.currentInnings;
+      if (state.battingTeamId !== undefined) match.state.battingTeamId = state.battingTeamId;
+      if (state.bowlingTeamId !== undefined) match.state.bowlingTeamId = state.bowlingTeamId;
+
+      const inningsScore =
+        match.state.currentInnings === 2 ? match.score.secondInnings : match.score.firstInnings;
+      const battingSlot = match.state.battingTeamId;
+      const bowlingSlot = match.state.bowlingTeamId;
+
+      // Resolve a striker / non-striker / bowler assignment. Accepts either a
+      // typed NAME (matched against the roster, or registered as a new match
+      // player when the roster has no such name) or an existing playerId.
+      const resolveAssignment = (nameKey, idKey, slot) => {
+        if (state[nameKey] !== undefined && cleanText(state[nameKey])) {
+          const r = resolveOrCreateRosterPlayer(match, slot, state[nameKey]);
+          return r ? r.id : null;
+        }
+        if (state[idKey] !== undefined) {
+          const id = state[idKey] ? String(state[idKey]) : null;
+          if (id && !findRosterPlayer(match, slot, id)) return { error: "not-in-team" };
+          return id;
+        }
+        return "skip";
+      };
+
+      // --- Striker / non-striker selection ---
+      for (const [nameKey, idKey] of [
+        ["strikerName", "strikerId"],
+        ["nonStrikerName", "nonStrikerId"],
+      ]) {
+        const resolved = resolveAssignment(nameKey, idKey, battingSlot);
+        if (resolved === "skip") continue;
+        if (resolved && resolved.error === "not-in-team") {
+          return res.status(400).json({ success: false, error: "That batter is not in the batting team." });
+        }
+        const id = resolved || null;
+        if (id) {
+          const existing = inningsScore.batting.find((b) => String(b.playerId) === id);
+          if (existing && existing.isOut) {
+            return res.status(400).json({ success: false, error: "That batter is already out." });
+          }
+          const other = idKey === "strikerId" ? match.state.nonStrikerId : match.state.strikerId;
+          if (other && String(other) === id) {
+            return res.status(400).json({ success: false, error: "Striker and non-striker must be different players." });
+          }
+        }
+        match.state[idKey] = id;
+        if (id) ensureBatter(inningsScore, match, battingSlot, id);
+      }
+
+      // --- Bowler selection ---
+      {
+        const resolved = resolveAssignment("bowlerName", "bowlerId", bowlingSlot);
+        if (resolved !== "skip") {
+          if (resolved && resolved.error === "not-in-team") {
+            return res.status(400).json({ success: false, error: "That bowler is not in the bowling team." });
+          }
+          const id = resolved || null;
+          match.state.bowlerId = id;
+          if (id) {
+            ensureBowler(inningsScore, match, bowlingSlot, id);
+            match.state.awaitingNewBowler = false;
+          }
+        }
+      }
+
+      // Clear the "pick a new batter" prompt once both ends are filled.
+      if (match.state.strikerId && match.state.nonStrikerId) {
+        match.state.awaitingNewBatter = false;
+      }
     }
     if (score) match.score = score;
-    
+
     // If setting toss, we usually transition from UPCOMING to LIVE
     if (toss && match.state.status === "UPCOMING") {
       match.state.status = "LIVE";
@@ -263,6 +475,8 @@ exports.updateMatchState = async (req, res) => {
       match.startedAt = match.startedAt || new Date();
     }
 
+    match.markModified("state");
+    match.markModified("score");
     await match.save();
     emitToRoom(req, match._id, "match:scoreUpdated", match);
     emitToRoom(req, "global", "match:scoreUpdated", match); // Let dashboard know
@@ -302,7 +516,22 @@ exports.scoreBall = async (req, res) => {
     }
     const currentInningsIndex = match.state.currentInnings === 1 ? "firstInnings" : "secondInnings";
     const inningsScore = match.score[currentInningsIndex];
-    
+
+    // Basic team scoring: a delivery is never blocked on batsman / bowler
+    // selection. Clear any stale "waiting for a new batsman / bowler" flags left
+    // over from an older player-aware session so the match never gets stuck.
+    match.state.awaitingNewBatter = false;
+    match.state.awaitingNewBowler = false;
+
+    const battingSlot = match.state.battingTeamId;
+    const bowlingSlot = match.state.bowlingTeamId;
+
+    // Resolve the players involved in this delivery from the roster-backed cards.
+    const strikerRow = ensureBatter(inningsScore, match, battingSlot, match.state.strikerId);
+    const nonStrikerRow = ensureBatter(inningsScore, match, battingSlot, match.state.nonStrikerId);
+    const bowlerRow = ensureBowler(inningsScore, match, bowlingSlot, match.state.bowlerId);
+    const bowlerName = bowlerRow?.name || rosterPlayerName(match, bowlingSlot, match.state.bowlerId, "Bowler");
+
     // Calculate sequence and over numbers
     const lastBall = await BallEvent.findOne({ matchId: match._id }).sort({ sequenceNumber: -1 });
     const sequenceNumber = lastBall ? lastBall.sequenceNumber + 1 : 1;
@@ -351,21 +580,115 @@ exports.scoreBall = async (req, res) => {
       inningsScore.wickets += 1;
     }
 
-    // Strike rotation logic
-    let shouldRotate = false;
-    if (batRuns % 2 !== 0) shouldRotate = !shouldRotate;
-    if (ballEvent.isLegalDelivery && (inningsScore.legalBalls % 6 === 0)) {
-      // Over completed, rotate strike
-      shouldRotate = !shouldRotate;
-      match.state.bowlerId = null; // Needs new bowler
+    // --- Per-player statistics -------------------------------------------------
+    // Batter faces a ball on every delivery except a wide.
+    if (strikerRow) {
+      if (extraType !== "WD") strikerRow.balls += 1;
+      strikerRow.runs += batRuns;
+      if (batRuns === 4) strikerRow.fours += 1;
+      if (batRuns === 6) strikerRow.sixes += 1;
     }
-    
-    if (shouldRotate) {
+
+    // Bowler figures: byes / leg-byes are NOT charged to the bowler.
+    if (bowlerRow) {
+      if (ballEvent.isLegalDelivery) bowlerRow.legalBalls += 1;
+      bowlerRow.runsConceded +=
+        batRuns + (extraType === "WD" || extraType === "NB" ? extraRuns : 0);
+      if (extraType === "WD") bowlerRow.wides += extraRuns;
+      if (extraType === "NB") bowlerRow.noBalls += 1;
+    }
+
+    // --- Wicket details -----------------------------------------------------
+    let dismissedSlot = null; // "striker" | "nonStriker"
+    if (wicketTaken) {
+      const dismissalType = (wicketDetails && wicketDetails.type) || "Other";
+      // Fielder: accept an existing id, or a typed name (registered on the
+      // fielding side's roster when new). Optional — blank is fine.
+      let fielderId = (wicketDetails && wicketDetails.fielderId) || null;
+      if (!fielderId && wicketDetails && cleanText(wicketDetails.fielderName)) {
+        const f = resolveOrCreateRosterPlayer(match, bowlingSlot, wicketDetails.fielderName);
+        fielderId = f ? f.id : null;
+      }
+      const fielderName = fielderId
+        ? rosterPlayerName(match, bowlingSlot, fielderId, "")
+        : "";
+
+      const requestedOutId = wicketDetails && wicketDetails.dismissedPlayerId
+        ? String(wicketDetails.dismissedPlayerId)
+        : null;
+      let outRow = strikerRow;
+      dismissedSlot = "striker";
+      if (requestedOutId && nonStrikerRow && String(nonStrikerRow.playerId) === requestedOutId) {
+        outRow = nonStrikerRow;
+        dismissedSlot = "nonStriker";
+      }
+
+      if (outRow) {
+        outRow.isOut = true;
+        outRow.dismissalType = dismissalType;
+        outRow.dismissalText = buildDismissalText(dismissalType, bowlerName, fielderName);
+        outRow.bowlerId = bowlerCreditedWicket(dismissalType) ? String(match.state.bowlerId || "") : null;
+        outRow.fielderId = fielderId;
+      }
+
+      if (bowlerRow && bowlerCreditedWicket(dismissalType)) {
+        bowlerRow.wickets += 1;
+      }
+
+      inningsScore.fallOfWickets.push({
+        wicketNumber: inningsScore.wickets,
+        runs: inningsScore.runs,
+        oversDisplay: oversDisplay(inningsScore.legalBalls),
+        playerOutId: outRow ? String(outRow.playerId) : null,
+        playerOutName: outRow ? outRow.name : "",
+      });
+
+      // Update the BallEvent so history / undo diagnostics are accurate.
+      ballEvent.wicket = {
+        type: dismissalType,
+        dismissedPlayerId: outRow ? String(outRow.playerId) : (requestedOutId || null),
+        fielderId,
+      };
+      ballEvent.markModified("wicket");
+      await ballEvent.save();
+    }
+
+    // --- Strike rotation ---------------------------------------------------
+    // Rotate on odd runs off the bat AND on odd bye / leg-bye runs.
+    const runsForRotation = batRuns + (["B", "LB"].includes(extraType) ? extraRuns : 0);
+    let shouldRotate = false;
+    if (runsForRotation % 2 !== 0) shouldRotate = !shouldRotate;
+
+    const overComplete = ballEvent.isLegalDelivery && inningsScore.legalBalls % 6 === 0;
+    if (overComplete) {
+      shouldRotate = !shouldRotate;
+    }
+
+    if (shouldRotate && match.state.strikerId && match.state.nonStrikerId) {
       const temp = match.state.strikerId;
       match.state.strikerId = match.state.nonStrikerId;
       match.state.nonStrikerId = temp;
     }
-    
+    // `dismissedSlot` is kept for the BallEvent record only — the basic team
+    // console just counts the wicket and never blocks for a replacement.
+    void dismissedSlot;
+
+    // --- This-over delivery strip ----------------------------------------
+    let ballSymbol;
+    if (wicketTaken) ballSymbol = batRuns > 0 ? `${batRuns}+W` : "W";
+    else if (extraType === "WD") ballSymbol = extraRuns > 1 ? `Wd${extraRuns}` : "Wd";
+    else if (extraType === "NB") ballSymbol = batRuns > 0 ? `Nb${batRuns}` : "Nb";
+    else if (extraType === "B") ballSymbol = `${extraRuns}B`;
+    else if (extraType === "LB") ballSymbol = `${extraRuns}Lb`;
+    else ballSymbol = batRuns === 0 ? "•" : String(batRuns);
+
+    if (!Array.isArray(match.state.thisOver)) match.state.thisOver = [];
+    // Start a fresh strip once the previous over was fully bowled.
+    const legalBefore = inningsScore.legalBalls - (ballEvent.isLegalDelivery ? 1 : 0);
+    if (legalBefore > 0 && legalBefore % 6 === 0) match.state.thisOver = [];
+    match.state.thisOver.push(ballSymbol);
+    match.state.lastBallText = ballSymbol;
+
     // Resolve "Team A"/"Team B" slots to actual team names for results.
     const nameFor = (slot) => {
       const t = slot === "Team A" ? match.teamA : slot === "Team B" ? match.teamB : null;
@@ -381,6 +704,14 @@ exports.scoreBall = async (req, res) => {
         const prevBatting = match.state.battingTeamId;
         match.state.battingTeamId = match.state.bowlingTeamId;
         match.state.bowlingTeamId = prevBatting;
+        // Reset the crease for the second innings.
+        match.state.strikerId = null;
+        match.state.nonStrikerId = null;
+        match.state.bowlerId = null;
+        match.state.thisOver = [];
+        match.state.lastBallText = "";
+        match.state.awaitingNewBatter = false;
+        match.state.awaitingNewBowler = false;
       } else {
         match.state.status = "COMPLETED";
         if (inningsScore.runs >= match.target) {
@@ -403,6 +734,11 @@ exports.scoreBall = async (req, res) => {
         match.resultText = `${match.winner} won by ${10 - inningsScore.wickets} wickets`;
     }
 
+    if (match.state.status === "COMPLETED") {
+      match.state.awaitingNewBatter = false;
+      match.state.awaitingNewBowler = false;
+    }
+
     // When the match finishes naturally, archive it to CompletedMatch so it
     // shows on the user "Result" tab and the admin "Completed" list.
     if (match.state.status === "COMPLETED") {
@@ -417,6 +753,10 @@ exports.scoreBall = async (req, res) => {
       }
     }
 
+    // `state` is an inline nested object; array mutations inside it (thisOver)
+    // are not auto-tracked by Mongoose, so flag it explicitly.
+    match.markModified("state");
+    match.markModified("score");
     await match.save();
     emitToRoom(req, match._id, "match:scoreUpdated", match);
     emitToRoom(req, "global", "match:scoreUpdated", match);
@@ -439,41 +779,21 @@ exports.undoLastBall = async (req, res) => {
       return res.status(400).json({ success: false, error: "This ball cannot be safely undone" });
     }
 
-    // Restore the exact pre-ball snapshot, including innings transitions.
+    // Restore the exact pre-ball snapshot, including innings transitions and
+    // every per-player statistic (batting[], bowling[], fallOfWickets[]) and
+    // crease state (striker/non-striker/bowler, thisOver) — all of which are
+    // nested inside `state` / `score` and captured by the snapshot in scoreBall.
     match.state = lastBall.previousState;
     match.score = lastBall.previousScore;
     match.target = lastBall.previousTarget;
     match.winner = lastBall.previousWinner;
     match.resultText = lastBall.previousResultText;
+    match.markModified("state");
+    match.markModified("score");
 
+    // If that ball had completed the match, roll the archive back too.
     await CompletedMatch.deleteOne({ sourceMatchId: match._id });
-    /*
-    // Reverse the effects of the last ball (legacy fallback kept below for
-    // old records created before snapshots were introduced).
-    const currentInningsIndex = lastBall.innings === 1 ? "firstInnings" : "secondInnings";
-    const inningsScore = match.score[currentInningsIndex];
 
-    let totalRuns = lastBall.runsOffBat + (lastBall.extras ? lastBall.extras.runs : 0);
-    inningsScore.runs -= totalRuns;
-    
-    if (lastBall.extras) {
-      inningsScore.extras -= lastBall.extras.runs;
-    }
-    
-    if (lastBall.isLegalDelivery) {
-      inningsScore.legalBalls -= 1;
-    }
-    
-    if (lastBall.isWicket) {
-      inningsScore.wickets -= 1;
-    }
-
-    // Restore strikers and bowlers (simplified for now, full restore requires more state history)
-    match.state.strikerId = lastBall.strikerId;
-    match.state.nonStrikerId = lastBall.nonStrikerId;
-    match.state.bowlerId = lastBall.bowlerId;
-
-    */
     await lastBall.deleteOne();
     await match.save();
 
@@ -526,6 +846,177 @@ exports.completeMatch = async (req, res) => {
     emitToRoom(req, "global", "match:completed", completedMatch);
 
     res.json({ success: true, match: completedMatch });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// EDIT MATCH — PUT /api/live-matches/:id
+// Works whether :id is a LiveMatch (UPCOMING / LIVE / INNINGS_BREAK) or a
+// CompletedMatch archive. Only match metadata is touched — never the score,
+// innings, ball events or player state. Both docs are kept in sync when a
+// naturally-completed match still has a LiveMatch alongside its archive.
+// ---------------------------------------------------------------------------
+exports.updateMatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: "Invalid match id" });
+    }
+
+    const { matchName, format, overs, venue, scheduledAt, teamA, teamB, status } = req.body;
+
+    const nMatchName = cleanText(matchName);
+    const nFormat = cleanText(format);
+    const nVenue = cleanText(venue);
+    const nAName = cleanText(teamA && teamA.name);
+    const nAShort = cleanText(teamA && teamA.shortName);
+    const nBName = cleanText(teamB && teamB.name);
+    const nBShort = cleanText(teamB && teamB.shortName);
+    const hasOvers = overs !== undefined && overs !== null && overs !== "";
+    const parsedOvers = hasOvers ? Number(overs) : undefined;
+    const parsedSchedule = scheduledAt ? new Date(scheduledAt) : undefined;
+
+    if (!nMatchName || nMatchName.length > 120 || !nAName || !nAShort || !nBName || !nBShort) {
+      return res.status(400).json({ success: false, message: "Enter a match name and both team names / short names." });
+    }
+    if (nAName.toLowerCase() === nBName.toLowerCase()) {
+      return res.status(400).json({ success: false, message: "Team A and Team B must be different teams." });
+    }
+    if (nAShort.toLowerCase() === nBShort.toLowerCase()) {
+      return res.status(400).json({ success: false, message: "Team short names must be different." });
+    }
+    if (parsedOvers !== undefined && (!Number.isSafeInteger(parsedOvers) || parsedOvers < 1 || parsedOvers > 100)) {
+      return res.status(400).json({ success: false, message: "Overs must be a whole number from 1 to 100." });
+    }
+    if (parsedSchedule !== undefined && Number.isNaN(parsedSchedule.getTime())) {
+      return res.status(400).json({ success: false, message: "Enter a valid match date and time." });
+    }
+
+    const completedSet = {
+      matchName: nMatchName,
+      venueSnapshot: nVenue,
+      ...(nFormat ? { format: nFormat } : {}),
+      ...(parsedOvers !== undefined ? { overs: parsedOvers } : {}),
+      ...(parsedSchedule !== undefined ? { scheduledAt: parsedSchedule } : {}),
+      "teamA.nameSnapshot": nAName,
+      "teamA.shortNameSnapshot": nAShort,
+      "teamB.nameSnapshot": nBName,
+      "teamB.shortNameSnapshot": nBShort,
+    };
+    const liveSet = {
+      matchName: nMatchName,
+      venue: nVenue,
+      ...(nFormat ? { format: nFormat } : {}),
+      ...(parsedOvers !== undefined ? { overs: parsedOvers } : {}),
+      ...(parsedSchedule !== undefined ? { scheduledAt: parsedSchedule } : {}),
+      "teamA.name": nAName,
+      "teamA.shortName": nAShort,
+      "teamB.name": nBName,
+      "teamB.shortName": nBShort,
+    };
+
+    // ---- LiveMatch ----
+    const liveMatch = await LiveMatch.findById(id);
+    if (liveMatch) {
+      Object.assign(liveMatch, {
+        matchName: nMatchName,
+        venue: nVenue,
+        ...(nFormat ? { format: nFormat } : {}),
+        ...(parsedOvers !== undefined ? { overs: parsedOvers } : {}),
+        ...(parsedSchedule !== undefined ? { scheduledAt: parsedSchedule } : {}),
+      });
+      liveMatch.teamA.name = nAName;
+      liveMatch.teamA.shortName = nAShort;
+      liveMatch.teamB.name = nBName;
+      liveMatch.teamB.shortName = nBShort;
+
+      // Optional status change: only the pre-match UPCOMING <-> CANCELLED
+      // transition is allowed here — anything else belongs to the scoring flow.
+      if (status && status !== liveMatch.state.status) {
+        const safe = ["UPCOMING", "CANCELLED"];
+        if (safe.includes(status) && safe.includes(liveMatch.state.status)) {
+          liveMatch.state.status = status;
+        } else {
+          return res.status(400).json({ success: false, message: "Match status can only be changed before the match has started." });
+        }
+      }
+
+      liveMatch.markModified("teamA");
+      liveMatch.markModified("teamB");
+      liveMatch.markModified("state");
+      await liveMatch.save();
+
+      await CompletedMatch.updateOne({ sourceMatchId: liveMatch._id }, { $set: completedSet });
+
+      emitToRoom(req, "global", "match:updated", liveMatch);
+      emitToRoom(req, "global", "match:scoreUpdated", liveMatch);
+      return res.json({ success: true, match: liveMatch });
+    }
+
+    // ---- CompletedMatch archive ----
+    const completed = await CompletedMatch.findById(id);
+    if (completed) {
+      await CompletedMatch.updateOne({ _id: completed._id }, { $set: completedSet });
+      if (completed.sourceMatchId) {
+        await LiveMatch.updateOne({ _id: completed.sourceMatchId }, { $set: liveSet });
+      }
+      const fresh = await CompletedMatch.findById(completed._id);
+      emitToRoom(req, "global", "match:updated", fresh);
+      emitToRoom(req, "global", "match:completed", fresh);
+      return res.json({ success: true, match: fresh });
+    }
+
+    return res.status(404).json({ success: false, error: "Match not found" });
+  } catch (err) {
+    const status = err && (err.name === "ValidationError" || err.name === "CastError") ? 400 : 500;
+    res.status(status).json({
+      success: false,
+      message: status === 500 ? "Unable to update the match right now." : err.message,
+      error: err.message,
+    });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// DELETE MATCH — DELETE /api/live-matches/:id
+// Identifies the match strictly by _id (never by team name). Cleans up the
+// related live-scoring data (BallEvent) and the CompletedMatch archive so no
+// orphaned documents remain. Tournament / Event / Registration collections
+// are NOT touched — LiveMatch/CompletedMatch only carry an optional
+// tournamentId reference and own no data on those collections.
+// ---------------------------------------------------------------------------
+exports.deleteMatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: "Invalid match id" });
+    }
+
+    const liveMatch = await LiveMatch.findById(id);
+    const completed = liveMatch
+      ? await CompletedMatch.findOne({ sourceMatchId: id })
+      : await CompletedMatch.findById(id);
+
+    if (!liveMatch && !completed) {
+      return res.status(404).json({ success: false, error: "Match not found" });
+    }
+
+    // The id that BallEvent.matchId / CompletedMatch.sourceMatchId point at.
+    const liveId = liveMatch ? liveMatch._id : (completed && completed.sourceMatchId) || null;
+
+    if (liveId) {
+      await BallEvent.deleteMany({ matchId: liveId });
+      await LiveMatch.deleteOne({ _id: liveId });
+    }
+    await CompletedMatch.deleteMany({
+      $or: [{ _id: id }, ...(liveId ? [{ sourceMatchId: liveId }] : [])],
+    });
+
+    const payload = { _id: String(id), liveMatchId: liveId ? String(liveId) : null };
+    emitToRoom(req, "global", "match:deleted", payload);
+    res.json({ success: true, deleted: payload });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

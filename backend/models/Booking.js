@@ -1,11 +1,23 @@
 const mongoose = require("mongoose");
 
+const lineItemSchema = new mongoose.Schema(
+    {
+        label: { type: String, required: true },
+        amount: { type: Number, required: true, min: 0 }
+    },
+    { _id: false }
+);
+
 const bookingSchema = new mongoose.Schema(
     {
+        // Linked only when an existing User already matches the contact email /
+        // phone. The player app has no login, so bookings primarily carry the
+        // contact snapshot below.
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            required: true
+            required: false,
+            default: null
         },
 
         turf: {
@@ -29,10 +41,45 @@ const bookingSchema = new mongoose.Schema(
             required: true
         },
 
+        // --- Split payment -------------------------------------------------
+        players: {
+            type: Number,
+            default: 1,
+            min: 1
+        },
+
+        // ceil(totalAmount / players)
+        perPersonAmount: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+
+        // --- Price breakdown (all computed server-side) --------------------
+        baseAmount: { type: Number, default: 0, min: 0 },
+        floodlightApplied: { type: Boolean, default: false },
+        floodlightAmount: { type: Number, default: 0, min: 0 },
+        equipmentSelected: {
+            type: [lineItemSchema],
+            default: []
+        },
+        equipmentAmount: { type: Number, default: 0, min: 0 },
+
+        // Sum of all attached add-ons (photography / videography / coach /
+        // equipment rental). Line detail lives in the AddonBooking collection.
+        addonsAmount: { type: Number, default: 0, min: 0 },
+
         totalAmount: {
             type: Number,
             required: true
         },
+
+        // --- Contact snapshot (there is no user login on the player app) ---
+        contactName: { type: String, default: "", trim: true },
+        contactPhone: { type: String, default: "", trim: true },
+        contactEmail: { type: String, default: "", trim: true },
+
+        paymentMethod: { type: String, default: "UPI", trim: true },
 
         status: {
             type: String,
@@ -44,5 +91,8 @@ const bookingSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+
+// Fast lookup + guard for slot clashes on a given turf/day.
+bookingSchema.index({ turf: 1, bookingDate: 1, startTime: 1 });
 
 module.exports = mongoose.model("Booking", bookingSchema);
