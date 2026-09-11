@@ -49,3 +49,20 @@ npm run dev
 ## Admin Credentials
 
 To access the Admin portal (`http://localhost:5174/login`), a Super Admin user is required. If the database is fresh, you can register an admin via the `/api/auth/register` backend endpoint.
+
+## Environment Variables (backend)
+
+Copy `backend/.env.example` to `backend/.env` and fill in real values locally.
+See that file for the full list. The only one required to boot is
+`MONGODB_URI`; everything else has a working default.
+
+## Deployment
+
+- **Backend** — Render web service (`turf-hub-backend`, config in `render.yaml`).
+  Build: `npm ci` · Start: `npm start` · Root dir: `backend`.
+  Set `MONGODB_URI` and `CLIENT_ORIGINS` (comma-separated list of the deployed
+  frontend URLs) in the Render dashboard under that service's Environment tab —
+  they are marked `sync: false` in `render.yaml` so Render won't overwrite them.
+- **Admin / Turf** — Vercel projects, built from `admin/` and `turf/`
+  respectively. Set `VITE_API_URL` in each Vercel project's environment
+  variables to the backend's public URL so the build points at the right API.
