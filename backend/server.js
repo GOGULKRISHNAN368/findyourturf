@@ -118,6 +118,9 @@ app.use("/api/bookings", bookingRoutes);
 const addonRoutes = require("./routes/addonRoutes");
 app.use("/api/addons", addonRoutes);
 
+const visitorRoutes = require("./routes/visitorRoutes");
+app.use("/api/visitors", visitorRoutes);
+
 const tournamentRoutes = require("./routes/tournamentRoutes");
 app.use("/api/tournaments", tournamentRoutes);
 

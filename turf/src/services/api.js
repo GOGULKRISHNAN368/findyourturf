@@ -194,3 +194,12 @@ export async function getMatchScorecard(matchId) {
     ballEvents: data.ballEvents || [],
   };
 }
+
+// --- Quick visitor registration ---
+export async function registerVisitor({ name, phone }) {
+  const data = await request("/api/visitors/register", {
+    method: "POST",
+    body: JSON.stringify({ name, phone }),
+  });
+  return data.visitor;
+}

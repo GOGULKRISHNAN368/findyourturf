@@ -403,3 +403,19 @@ export async function deleteAddon(id, { force = false } = {}) {
     headers: authHeaders(),
   });
 }
+
+// ==========================================
+// VISITORS API (quick registration)
+// ==========================================
+
+export async function getVisitors({ page = 1, limit = 200 } = {}) {
+  const data = await request(`/api/visitors?page=${page}&limit=${limit}`, {
+    headers: authHeaders(),
+  });
+  return {
+    visitors: Array.isArray(data.visitors) ? data.visitors : [],
+    total: data.total || 0,
+    page: data.page || page,
+    limit: data.limit || limit,
+  };
+}

@@ -5,6 +5,7 @@ import {
   IconLive,
   IconMapPin,
   IconSparkles,
+  IconUsers,
   IconX,
   IconShield,
   IconCollapse,
@@ -31,6 +32,7 @@ export default function Sidebar({
     { id: "events", label: "Events", icon: IconCalendar, count: counts.events },
     { id: "turfs", label: "Turfs", icon: IconMapPin, count: counts.turfs },
     { id: "addons", label: "Add-ons", icon: IconSparkles },
+    { id: "visitors", label: "Visitors", icon: IconUsers },
     { id: "live-matches", label: "Live Matches", icon: IconLive },
   ];
 

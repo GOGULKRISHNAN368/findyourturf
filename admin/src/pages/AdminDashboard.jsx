@@ -9,6 +9,7 @@ import Modal from "../components/common/Modal";
 import LiveMatches from "./LiveMatches";
 import TurfManagement from "./TurfManagement";
 import AddonsManagement from "./AddonsManagement";
+import VisitorsManagement from "./VisitorsManagement";
 import {
   IconCalendar,
   IconTrophy,
@@ -608,6 +609,8 @@ export default function AdminDashboard() {
           ? "Turf Management"
           : activeTab === "addons"
           ? "Add-ons Management"
+          : activeTab === "visitors"
+          ? "Visitors"
           : "System Settings"
       }
       breadcrumb={`Overview / ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
@@ -736,6 +739,10 @@ export default function AdminDashboard() {
 
       {activeTab === "addons" && (
         <AddonsManagement />
+      )}
+
+      {activeTab === "visitors" && (
+        <VisitorsManagement />
       )}
 
       {/* -------------------------------------------------------------------

@@ -58,6 +58,44 @@ export function addLocalBooking(booking) {
   }
 }
 
+// --- Quick visitor registration (first-open gate) ---------------------
+// Separate from the checkout "profile" above: this only remembers whether
+// this browser has completed the one-time Quick Registration screen.
+const VISITOR_KEY = "fyt_visitor";
+
+export function getVisitor() {
+  try {
+    return safeParse(localStorage.getItem(VISITOR_KEY), null);
+  } catch {
+    return null;
+  }
+}
+
+export function isVisitorRegistered() {
+  const v = getVisitor();
+  return Boolean(v && v.visitorRegistered && v.visitorId);
+}
+
+export function saveVisitor({ visitorId, name, phone }) {
+  const record = { visitorRegistered: true, visitorId, name };
+  try {
+    localStorage.setItem(VISITOR_KEY, JSON.stringify(record));
+  } catch {
+    /* storage unavailable — ignore, the gate will just show again next time */
+  }
+  // Best-effort: also seed the checkout contact profile so a returning
+  // visitor doesn't have to retype their details at booking time. Only if
+  // nothing is saved there yet — never overwrite an existing profile.
+  try {
+    if (!getProfile()) {
+      saveProfile({ name, phone, email: "" });
+    }
+  } catch {
+    /* ignore */
+  }
+  return record;
+}
+
 // --- Notification "unread" tracking ---
 export function getNotificationsSeenAt() {
   try {

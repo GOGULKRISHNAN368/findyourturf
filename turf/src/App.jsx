@@ -27,6 +27,7 @@ import "./App.css";
 import { getEvent, getEvents, getTournament } from "./services/api";
 import { socket } from "./services/socket";
 import { getEventImage } from "./utils/sportsImages";
+import { isVisitorRegistered } from "./services/profile";
 
 // Components
 import Navbar from "./components/Navbar";
@@ -46,6 +47,7 @@ import BookTurf from "./pages/BookTurf";
 import TurfDetails from "./pages/TurfDetails";
 import Checkout from "./pages/Checkout";
 import AddonsCatalog from "./pages/AddonsCatalog";
+import QuickRegister from "./pages/QuickRegister";
 
 // Banners
 import banner1 from "./assets/banners/promo_tournaments_1788516995082.jpg";
@@ -882,6 +884,14 @@ function formatDate(date) {
 }
 
 function App() {
+  // Quick visitor registration gate — shown once per browser before any
+  // route renders. Existing routes below are completely unchanged.
+  const [visitorReady, setVisitorReady] = useState(() => isVisitorRegistered());
+
+  if (!visitorReady) {
+    return <QuickRegister onComplete={() => setVisitorReady(true)} />;
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
